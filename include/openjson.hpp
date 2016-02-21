@@ -1,248 +1,328 @@
 #include <string>
+#include <regex>
 #include <map>
 #include <vector>
 #include <memory>
 
-namespace OpenJSON {
-    namespace Types {
-        typedef struct Point {
+#include "json.hpp"
+
+using json = nlohmann::json;
+
+namespace open_json {
+    static std::vector<std::string> split(const std::string &input, const std::string &regex) {
+        // passing -1 as the submatch index parameter performs splitting
+        std::regex re(regex);
+        std::sregex_token_iterator
+            first{input.begin(), input.end(), re, -1},
+            last;
+        return {first, last};
+    }
+    
+    namespace types {
+        typedef struct point {
             int64_t x, y;
-            Point() : Point(0, 0) {}
-            Point(int xPos, int yPos) : x(xPos), y(yPos) {}
-        } Point;
-            
-        namespace Shapes {
-            enum class Alignment {
+            point() : point(0, 0) {}
+            point(int x_pos, int y_pos) : x(x_pos), y(y_pos) {}
+        } point;
+        
+        class json_object {
+        public:
+            virtual void read(json json) = 0;
+            virtual void write(json json) = 0;
+        };
+        
+        namespace shapes {
+            enum class alignment {
                 LEFT, RIGHT, CENTER
             };
             
-            enum class Type {
+            enum class shape_type {
                 RECTANGLE, ROUNDED_RECTANGLE, ARC, CIRCLE, LABEL, LINE, POLYGON, BEZIER_CURVE
             };
             
             // What is this used for?
-            enum class Baseline {
+            enum class baseline {
                 ALPHABET,
             };
             
-            class Shape {
+            class shape : public json_object {
             public:
-                Type type;
+                shape_type type;
                 std::map<std::string, std::string> styles;
-            float rotation = 0.0f;
+                float rotation = 0.0f;
                 bool flip = false;
-            private:
+
             public:
-                Shape (Type shapeType) : type(shapeType) {}
+                shape (shape_type shape_type) : type(shape_type) {}
+                virtual void read(json json) override;
+                virtual void write(json json) override;
             };
                 
-            class Label : public Shape {
-                Alignment align = Alignment::LEFT;
-                Baseline baseline = Baseline::ALPHABET;
-                std::string fontFamily;
+            class label : public shape {
+                alignment align = alignment::LEFT;
+                baseline baseline = baseline::ALPHABET;
+                std::string font_family;
                 std::string text;
-                int fontSize;
-                Point position;
+                int font_size;
+                point position;
             public:
-                Label() : Shape(Type::LABEL) {}
+                label() : shape(shape_type::LABEL) {}
+                void read(json json) override;
+                void write(json json) override;
             };
             
-            class Line : public Shape {
+            class line : public shape {
                 unsigned int width = 10;
-                Point start, end;
+                point start, end;
             public:
-                Line() : Shape(Type::LINE) {}
+                line() : shape(shape_type::LINE) {}
+                void read(json json) override;
+                void write(json json) override;
             };
         };
         
-        class Annotation {
+        class annotation : public json_object {
             float rotation = 0.0f;
-            Point position;
+            point position;
             bool flip = false, visible = true;
-            Shapes::Label label;
+            shapes::label label;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class SymbolAttribute {
+        class symbol_attribute : public json_object {
             float rotation = 0.0f;
-            Point position;
+            point position;
             bool flip = false, hidden = false;
-            std::vector<Annotation> annotations;
+            std::vector<annotation> annotations;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class ActionRegion {
+        class action_region : public json_object {
             std::map<std::string, std::string> attributes;
             std::vector<int> connections;
             std::string name;
-            Point p1, p2;
-            std::string refID;
+            point p1, p2;
+            std::string ref_id;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class Body {
+        class body : public json_object {
             float rotation = 0.0f;
             std::vector<int> connections;
             bool flip = false, moveable = true, removable = true;
-            std::string layerName;
-            std::vector<Shapes::Shape> shapes;
-            std::vector<ActionRegion> actionRegions;
-            std::vector<Annotation> annotations;
+            std::string layer_name;
+            std::vector<shapes::shape> shapes;
+            std::vector<action_region> action_regions;
+            std::vector<annotation> annotations;
             std::map<std::string, std::string> styles;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class GeneratedObject {
+        class generated_object : public json_object {
             std::map<std::string, std::string> attributes;
             std::vector<int> connections;
-            std::string layerName;
+            std::string layer_name;
             bool flip = false;
             float rotation = 0.0f;
-            Point position;
+            point position;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class Symbol {
-            std::vector<Body> bodies;
+        class symbol : public json_object {
+            std::vector<body> bodies;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class Footprint {
-            std::vector<Body> bodies;
-            std::vector<GeneratedObject> generatedObjects;
+        class footprint : public json_object {
+            std::vector<body> bodies;
+            std::vector<generated_object> generated_objects;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class Component {
-            std::string libraryID;
+        class component : public json_object {
+            std::string library_id;
             std::map<std::string, std::string> attributes;
-
+            std::vector<footprint> footprints;
+            std::vector<symbol> symbols;
+        public:
+            component(std::string id) : library_id(id) {}
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class ComponentInstance {
-            Component componentDef;
+        class component_instance : public json_object {
+            std::shared_ptr<component> component_def;
             std::map<std::string, std::string> attributes;
-            std::vector<SymbolAttribute> symbolAttributes;
-            std::string instanceID;
-            std::string symbolID;    
+            std::vector<symbol_attribute> symbol_attributes;
+            std::string instance_id;
+            std::string symbol_id;
+        public:
+            component_instance(std::shared_ptr<component> def) : component_def(def) {}
+            void read(json json) override;
+            void write(json json) override;
+            std::string get_id() { return instance_id; }
         };
         
-        class NetPoint {
+        class net_point : public json_object {
            typedef struct {
-                unsigned int actionRegionIndex;
-                unsigned int bodyIndex;
-                std::string componentInstanceID;
-                int orderIndex = 0;
-                std::string signalName;
-            } ConnectedActionRegion;
+                unsigned int action_region_index;
+                unsigned int body_index;
+                std::string component_instance_id;
+                int order_index = 0;
+                std::string signal_name;
+            } connected_action_region;
             
-            std::string pointID;
-            std::vector<ConnectedActionRegion> actionRegions;
-            std::map<std::string, std::shared_ptr<NetPoint>> connectedPoints;
-            Point position;
+            std::string point_id;
+            std::vector<connected_action_region> action_regions;
+            std::map<std::string, std::shared_ptr<net_point>> connected_points;
+            point position;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class Net {
-            enum class Type {
+        class net : public json_object {
+            enum class type {
                 NETS
             };
             
-            std::vector<Annotation> annotations;
+            std::vector<annotation> annotations;
             std::map<std::string, std::string> attributes;
-            std::string netID;
-            Type netType = Type::NETS;
-            std::vector<NetPoint> points;
-            std::vector<std::string> signals;
+            std::string net_id;
+            type net_type = type::NETS;
+            std::vector<net_point> points;
+        public:
+            void read(json json) override;
+            void write(json json) override;
+            std::string get_id() { return net_id; }
         };
         
-        class Trace {
-            enum class Type {
+        class trace : public json_object {
+            enum class type {
                 STRAIGHT
             };
             
-            std::string layerName;
-            Point start, end;
-            std::vector<Point> controlPoints;
+            std::string layer_name;
+            point start, end;
+            std::vector<point> control_points;
             double width;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class Pour {
-            std::string attachedNetID;
+        class pour : public json_object {
+            std::string attached_net_id;
             std::map<std::string, std::string> attributes;
-            std::string layerName;
-            int orderIndex = 0;
-            std::vector<Point> points;
+            std::string layer_name;
+            int order_index = 0;
+            std::vector<point> points;
             // TODO There is a polygon object that doesn't make sense to me
-            Shapes::Type shapeTypes;
+            shapes::shape_type shape_types;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class PCBText {
+        class pcb_text : public json_object {
             bool flip = false, visible = true;
-            Shapes::Label label;
-            std::string layerName;
+            shapes::label label;
+            std::string layer_name;
             float rotation = 0.0f;
             std::string text;
-            Point position;
+            point position;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class LayoutObject {
+        class layout_object : public json_object {
             std::map<std::string, std::string> attributes;
             std::vector<int> connections;
             bool flip = false;
-            std::string layerName;
+            std::string layer_name;
             float rotation = 0.0f;
-            Point position;
+            point position;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class LayoutBodyAttribute {
+        class layout_body_attribute : public json_object {
             bool flip = false;
-            std::string layerName;
+            std::string layer_name;
             float rotation = 0.0f;
-            Point position;
+            point position;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class LayerOption {
+        class layer_option : public json_object {
             std::string ident;
-            bool isCopper = true;
+            bool is_copper = true;
             std::string name;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
         
-        class DesignInfo {
+        class design_info : public json_object {
             typedef struct {
-                std::vector<std::string> attachedLinks;
+                std::vector<std::string> attached_links;
                 std::string description;
                 std::string designID;
                 std::string license;
                 std::string name;
                 std::string owner;
                 std::string slug;
-                uint64_t lastUpdatedTimestamp;
-            } Metadata;
+                uint64_t last_updated;
+            } metadata_container;
             
-            std::vector<Annotation> annotations;
+            std::vector<annotation> annotations;
             std::map<std::string, std::string> attributes;
-            Metadata metadata;
+            metadata_container metadata;
+        public:
+            void read(json json) override;
+            void write(json json) override;
         };
     };
     
-    class Data {
+    class data : public types::json_object {
         typedef struct {
-            std::string exporter, fileVersion;
-        } Version;
+            std::string exporter;
+            int major = 0, minor = 2, build = 0;
+        } version;
         
-        Version versionInfo;
-        Types::DesignInfo designInfo;
+        version version_info;
+        types::design_info design_info;
         
-        std::vector<Types::Component> components;
-        std::vector<Types::ComponentInstance> componentInstances;
-        std::vector<Types::LayerOption> layerOptions;
-        std::vector<Types::Body> layoutBodies;
-        std::vector<Types::LayoutBodyAttribute> layoutBodyAttributes;
-        std::vector<Types::LayoutObject> layoutObjects;
-        std::vector<Types::Net> nets;
-        std::vector<Types::PCBText> pcbText;
-        std::vector<Types::Pour> pours;
-        std::vector<Types::Trace> traces;
-    };
-    
-    class Reader {
-        
-    };
-    
-    class Writer {
-        
+        std::map<std::string, std::shared_ptr<types::component>> components;
+        std::map<std::string, std::shared_ptr<types::component_instance>> component_instances;
+        std::map<std::string, std::shared_ptr<types::net>> nets;
+        std::vector<std::shared_ptr<types::layer_option>> layer_options;
+        std::vector<std::shared_ptr<types::body>> layout_bodies;
+        std::vector<std::shared_ptr<types::layout_body_attribute>> layout_body_attributes;
+        std::vector<std::shared_ptr<types::layout_object>> layout_objects;
+        std::vector<std::shared_ptr<types::pcb_text>> pcb_text;
+        std::vector<std::shared_ptr<types::pour>> pours;
+        std::vector<std::shared_ptr<types::trace>> traces;
+    public:
+        void read(json json) override;
+        void write(json json) override;
     };
 };
