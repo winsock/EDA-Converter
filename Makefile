@@ -1,7 +1,7 @@
 IDIR=include
 CC=clang
 CXX=clang++
-CFLAGS=-I$(IDIR)
+CFLAGS=-g -O0 -I$(IDIR)
 CXXFLAGS=$(CFLAGS) -std=c++11
 
 OUTNAME=converter
@@ -30,4 +30,4 @@ all: $(OBJ)
 .PHONY: clean
 
 clean:
-	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~ 
+	rm -f $(ODIR)/*.o *~ core $(IDIR)/*~ $(OUTDIR)/$(OUTNAME)

@@ -1,26 +1,42 @@
+#ifndef __CONVERTER__
+#define __CONVERTER__
+
 #include <string>
 #include <initializer_list>
 #include <vector>
 #include <stdexcept>
 
-enum class EDAType {
+enum class eda_type {
     OPEN_JSON,
     EAGLE,
     KICAD,
     GEDA
 };
 
-class Converter {
+enum class output_type {
+    SCHEMATIC,
+    LAYOUT,
+    ALL
+};
+
+class converter {
 private:
-    std::vector<std::string> edaFiles;
-    bool parse();
+    std::vector<std::string> eda_files;
 public:
-    Converter();
+    converter();
     bool openFiles(std::initializer_list<std::string> files);
-    bool write(EDAType type);
+    bool write(eda_type type);
 };
 
 class parse_exception : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
 };
+
+class eda_format {
+public:
+    virtual void read(std::initializer_list<std::string> files) = 0;
+    virtual void write(output_type type, std::string out_file) = 0;
+};
+
+#endif /* defined(__CONVERTER__) */

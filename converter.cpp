@@ -3,23 +3,30 @@
 #include <iterator>
 
 #include "converter.hpp"
+#include "openjson.hpp"
 
 int main(int argc, char** argv) {
-    std::cout<<"Hello World"<<std::endl;
-    return EXIT_SUCCESS;
+    converter convert;
+    // XXX REMOVE AND REPLACE WITH ACTUAL CLI THIS IS JUST TESTING
+    if (convert.openFiles({"test_file.upv"}))
+        return EXIT_SUCCESS;
+    return EXIT_FAILURE;
 }
 
-Converter::Converter() {
-    
-}
+converter::converter() {}
 
-bool Converter::openFiles(std::initializer_list<std::string> files) {
-    std::copy(files.begin(), files.end(), std::back_inserter(this->edaFiles));
-    return this->parse();
-}
-
-bool Converter::parse() {
-    for (std::string file : this->edaFiles) {
-        
+bool converter::openFiles(std::initializer_list<std::string> files) {
+    std::copy(files.begin(), files.end(), std::back_inserter(this->eda_files));
+    open_json::open_json_format parser;
+    try {
+        parser.read(files);
+    } catch (parse_exception e) {
+        std::cerr<<"Parse Error: "<<e.what()<<std::endl;
+        return false;
+    } catch (std::exception e) {
+        std::cerr<<"Uncaught Exception: "<<e.what()<<std::endl;
+        return false;
     }
+    std::cout<<"Sucessfully read the input files!"<<std::endl;
+    return true;
 }
