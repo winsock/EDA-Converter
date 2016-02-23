@@ -91,7 +91,7 @@ namespace open_json {
             };
             
             class rectangle : public shape {
-                unsigned int line_width = 10;
+                unsigned int line_width = 0;
                 int width = 0, height = 0;
                 point position;
             protected:
@@ -123,7 +123,7 @@ namespace open_json {
             };
             
             class circle : public shape {
-                unsigned int line_width = 10;
+                unsigned int line_width = 0;
                 int radius = 3;
                 point position;
             public:
@@ -157,7 +157,7 @@ namespace open_json {
             };
             
             class line : public shape {
-                unsigned int width = 10;
+                unsigned int width = 0;
                 point start, end;
             protected:
                 line(json json_data, shape_type type) : shape(json_data, type) { this->read(json_data); }
@@ -176,7 +176,7 @@ namespace open_json {
             };
             
             class polygon : public shape {
-                unsigned int line_width = 10;
+                unsigned int line_width = 0;
                 std::vector<point> points;
                 std::vector<shape_type> shape_types;
             public:

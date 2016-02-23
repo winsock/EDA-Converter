@@ -1174,7 +1174,10 @@ json::object_t open_json::types::shapes::arc::get_json() {
 void open_json::types::shapes::circle::read(json json_data) {
     this->radius = json_data.value("radius", this->radius);
     this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
-    this->line_width = json_data.value("line_width", this->line_width);
+    // Account for export bug on the offical Upverter site.
+    if (json_data.find("line_width") != json_data.end() && json_data["line_width"].is_number()) {
+        this->line_width = json_data.value("line_width", this->line_width);
+    }
 }
 
 json::object_t open_json::types::shapes::circle::get_json() {
