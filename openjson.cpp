@@ -18,6 +18,7 @@ open_json::types::shapes::shape_registry_type open_json::types::shapes::shape_re
     {shape_type::POLYGON, &create<polygon>},
     {shape_type::BEZIER_CURVE, &create<bezier_curve>}
 };
+
 std::map<std::string, open_json::types::shapes::shape_type> open_json::types::shapes::shape_typename_registry = {
     {"rectangle", shape_type::RECTANGLE},
     {"rounded_rectangle", shape_type::ROUNDED_RECTANGLE},
@@ -42,7 +43,7 @@ std::map<open_json::types::shapes::shape_type, std::string> open_json::types::sh
     {shape_type::BEZIER_CURVE, "bezier"}
 };
 
-//Data
+// Data
 void open_json::data::read(json json_data) {
     if (json_data.find("version") != json_data.end()) {
         std::vector<std::string> tokens = split(json_data["version"].value("file_version", "0.2.0"), "\\.");
@@ -56,6 +57,10 @@ void open_json::data::read(json json_data) {
             }
         }
         this->version_info.exporter = json_data["version"].value("exporter", "None");
+    }
+    
+    if (this->version_info.minor < 2) {
+        throw new parse_exception("This program cannot open OpenJSON file format versions earlier than 0.2.0 at the moment!");
     }
     
     if (json_data.find("design_attributes") != json_data.end()) {
@@ -204,7 +209,6 @@ json::object_t open_json::data::get_json() {
 }
 
 // Design Info
-
 void open_json::types::design_info::read(json json_data) {
     if (json_data.find("annotations") != json_data.end()) {
         for (json::object_t json_object : json_data["annotations"]) {
@@ -254,7 +258,6 @@ json::object_t open_json::types::design_info::get_json() {
 }
 
 // Component
-
 void open_json::types::component::read(json json_data) {
     this->name = json_data.value("name", "Unamed");
     
@@ -292,7 +295,6 @@ json::object_t open_json::types::component::get_json() {
 }
 
 // Component Instance
-
 void open_json::types::component_instance::read(json json_data) {
     this->instance_id = json_data.value("instance_id", "0000000000000000");
     this->symbol_index = json_data.value("symbol_index", this->symbol_index);
@@ -363,7 +365,6 @@ json::object_t open_json::types::component_instance::get_json() {
 }
 
 // Footprint
-
 void open_json::types::footprint::read(json json_data) {
     if (json_data.find("bodies") != json_data.end()) {
         for (json::object_t json_object : json_data["bodies"]) {
@@ -393,7 +394,6 @@ json::object_t open_json::types::footprint::get_json() {
 }
 
 // Footprint Attribute
-
 void open_json::types::footprint_attribute::read(json json_data) {
     this->rotation = json_data.value("rotation", this->rotation);
     this->flip = open_json::get_boolean(json_data["flip"]);
@@ -418,7 +418,6 @@ json::object_t open_json::types::footprint_attribute::get_json() {
 
 
 // Symbol
-
 void open_json::types::symbol::read(json json_data) {
     if (json_data.find("bodies") != json_data.end()) {
         for (json::object_t json_object : json_data["bodies"]) {
@@ -438,7 +437,6 @@ json::object_t open_json::types::symbol::get_json() {
 }
 
 // Symbol Attribute
-
 void open_json::types::symbol_attribute::read(json json_data) {
     this->rotation = json_data.value("rotation", this->rotation);
     this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
@@ -469,7 +467,6 @@ json::object_t open_json::types::symbol_attribute::get_json() {
 }
 
 // Body
-
 void open_json::types::body::read(json json_data) {
     this->rotation = json_data.value("rotation", this->rotation);
     this->flip = open_json::get_boolean(json_data["flip"]);
@@ -546,7 +543,6 @@ json::object_t open_json::types::body::get_json() {
 }
 
 // Generated Object
-
 void open_json::types::generated_object::read(json json_data) {
     if (json_data.find("connection_indexes") != json_data.end()) {
         for (int connection : json_data["connection_indexes"]) {
@@ -566,7 +562,6 @@ json::object_t open_json::types::generated_object::get_json() {
 }
 
 // Generated Object Attribute
-
 void open_json::types::generated_object_attribute::read(json json_data) {
     this->layer_name = json_data.value("layer", "Unnamed");
     this->flip = open_json::get_boolean(json_data["flip"]);
@@ -589,7 +584,6 @@ json::object_t open_json::types::generated_object_attribute::get_json() {
     };
 }
 // Action Region
-
 void open_json::types::action_region::read(json json_data) {
     this->name = json_data.value("name", "Unnamed Region");
     this->ref_id = json_data.value("ref", this->name);
@@ -634,7 +628,6 @@ json::object_t open_json::types::action_region::get_json() {
 }
 
 // Annotation
-
 void open_json::types::annotation::read(json json_data) {
     this->rotation = json_data.value("rotation", this->rotation);
     this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
@@ -663,7 +656,6 @@ json::object_t open_json::types::annotation::get_json() {
 }
 
 // Layer Option
-
 void open_json::types::layer_option::read(json json_data) {
     this->ident = json_data.value("ident", json_data.value("name", "Unnamed"));
     this->name = json_data.value("name", this->ident);
@@ -679,7 +671,6 @@ json::object_t open_json::types::layer_option::get_json() {
 }
 
 // Layout Object Attribute
-
 void open_json::types::layout_body_attribute::read(json json_data) {
     this->flip = open_json::get_boolean(json_data["flip"]);
     this->layer_name = json_data.value("layer", "Unnamed");
@@ -698,7 +689,6 @@ json::object_t open_json::types::layout_body_attribute::get_json() {
 }
 
 // Layout Object
-
 void open_json::types::layout_object::read(json json_data) {
     if (json_data.find("attributes") != json_data.end()) {
         types::populate_attributes(this->attributes, json_data["attributes"]);
@@ -724,7 +714,6 @@ json::object_t open_json::types::layout_object::get_json() {
 }
 
 // PCB Text
-
 void open_json::types::pcb_text::read(json json_data) {
     this->flip = open_json::get_boolean(json_data["flip"]);
     this->visible = open_json::get_boolean(json_data["visible"], true);
@@ -755,7 +744,6 @@ json::object_t open_json::types::pcb_text::get_json() {
 }
 
 // Pour Polygon Base
-
 void open_json::types::pour_polygon_base::read(json json_data) {
     this->flip = open_json::get_boolean(json_data["flip"]);
     this->rotation = json_data.value("rotation", this->rotation);
@@ -785,7 +773,6 @@ json::object_t open_json::types::pour_polygon_base::get_json() {
 }
 
 // Pour Polygon
-
 void open_json::types::pour_polygon::read(json json_data) {
     this->line_width = json_data.value("line_width", this->line_width);
     
@@ -838,7 +825,6 @@ json::object_t open_json::types::pour_polygon::get_json() {
 }
 
 // Pour Polygon Set
-
 void open_json::types::pour_polygon_set::read(json json_data) {
     if (json_data.find("polygons") != json_data.end()) {
         for (json::object_t general_polygon : json_data["polygons"]) {
@@ -865,7 +851,6 @@ json::object_t open_json::types::pour_polygon_set::get_json() {
 }
 
 // Pour
-
 void open_json::types::pour::read(json json_data) {
     this->attached_net_id = json_data.value("attached_net", "Unnamed");
     this->layer_name = json_data.value("layer", "Unnamed");
@@ -926,7 +911,6 @@ json::object_t open_json::types::pour::get_json() {
 }
 
 // Trace
-
 void open_json::types::trace::read(json json_data) {
     this->layer_name = json_data.value("layer", "Unnamed");
     this->width = json_data.value("width", 254000.0);
@@ -986,7 +970,6 @@ json::object_t open_json::types::trace::get_json() {
 }
 
 // Net
-
 void open_json::types::net::read(json json_data) {
     this->net_id = json_data.value("net_id", "0000000000000000");
     
@@ -1051,7 +1034,6 @@ json::object_t open_json::types::net::get_json() {
 }
 
 // Net Point
-
 void open_json::types::net_point::read(json json_data) {
     this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
     
@@ -1096,7 +1078,6 @@ json::object_t open_json::types::net_point::get_json() {
 
 // Shapes
 // Shape
-
 void open_json::types::shapes::shape::read(json json_data) {
     this->flip = open_json::get_boolean(json_data["flip"]);
     this->rotation = json_data.value("rotation", this->rotation);
@@ -1116,7 +1097,6 @@ json::object_t open_json::types::shapes::shape::get_json() {
 }
 
 // Rectangle
-
 void open_json::types::shapes::rectangle::read(json json_data) {
     this->width = json_data.value("width", this->width);
     this->height = json_data.value("height", this->height);
@@ -1135,7 +1115,6 @@ json::object_t open_json::types::shapes::rectangle::get_json() {
 }
 
 // Rounded Rectangle
-
 void open_json::types::shapes::rounded_rectangle::read(json json_data) {
     this->radius = json_data.value("radius", this->radius);
 }
@@ -1147,7 +1126,6 @@ json::object_t open_json::types::shapes::rounded_rectangle::get_json() {
 }
 
 // Arc
-
 void open_json::types::shapes::arc::read(json json_data) {
     this->is_clockwise = open_json::get_boolean(json_data["is_clockwise"], true);
     this->start_angle = json_data.value("start_angle", this->start_angle);
@@ -1170,7 +1148,6 @@ json::object_t open_json::types::shapes::arc::get_json() {
 }
 
 // Circle
-
 void open_json::types::shapes::circle::read(json json_data) {
     this->radius = json_data.value("radius", this->radius);
     this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
@@ -1190,7 +1167,6 @@ json::object_t open_json::types::shapes::circle::get_json() {
 }
 
 // Label
-
 void open_json::types::shapes::label::read(json json_data) {
     // Default to sans serif
     this->font_family = json_data.value("font_family", "sans-serif");
@@ -1257,7 +1233,6 @@ json::object_t open_json::types::shapes::label::get_json() {
 }
 
 // Line
-
 void open_json::types::shapes::line::read(json json_data) {
     this->width = json_data.value("width", this->width);
     
@@ -1281,7 +1256,6 @@ json::object_t open_json::types::shapes::line::get_json() {
 }
 
 // Rounded Segment
-
 void open_json::types::shapes::rounded_segment::read(json json_data) {
     this->radius = json_data.value("radius", this->radius);
 }
@@ -1293,7 +1267,6 @@ json::object_t open_json::types::shapes::rounded_segment::get_json() {
 }
 
 // Polygon
-
 void open_json::types::shapes::polygon::read(json json_data) {
     this->line_width = json_data.value("line_width", this->line_width);
     for (json::object_t point : json_data["points"]) {
@@ -1322,7 +1295,6 @@ json::object_t open_json::types::shapes::polygon::get_json() {
 }
 
 // Bezier Curve
-
 void open_json::types::shapes::bezier_curve::read(json json_data) {
     if (json_data.find("p1") != json_data.end()) {
         this->start = open_json::types::point(json_data["p1"].value("x", this->start.x), json_data["p1"].value("y", this->start.y));
@@ -1355,7 +1327,6 @@ json::object_t open_json::types::shapes::bezier_curve::get_json() {
 }
 
 // OpenJSON
-
 void open_json::open_json_format::read(std::initializer_list<std::string> files) {
 
     for (std::string file : files) {
@@ -1372,7 +1343,7 @@ void open_json::open_json_format::write(output_type type, std::string out_file) 
     for (auto data : this->parsed_data) {
         std::ofstream file_stream(out_file);
         json raw_json = data->get_json();
-        file_stream << raw_json << std::endl;
+        file_stream << /*std::setw(4) <<*/ raw_json << std::endl;
         file_stream.close();
     }
 }
