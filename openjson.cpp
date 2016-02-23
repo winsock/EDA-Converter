@@ -59,7 +59,7 @@ void open_json::data::read(json json_data) {
         this->version_info.exporter = json_data["version"].value("exporter", "None");
     }
     
-    if (this->version_info.minor < 2) {
+    if (this->version_info.major < 1 && this->version_info.minor < 2) {
         throw new parse_exception("This program cannot open OpenJSON file format versions earlier than 0.2.0 at the moment!");
     }
     
