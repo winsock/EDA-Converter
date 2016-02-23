@@ -23,10 +23,15 @@ bool converter::openFiles(std::initializer_list<std::string> files) {
     } catch (parse_exception e) {
         std::cerr<<"Parse Error: "<<e.what()<<std::endl;
         return false;
-    } catch (std::exception e) {
-        std::cerr<<"Uncaught Exception: "<<e.what()<<std::endl;
-        return false;
     }
     std::cout<<"Sucessfully read the input files!"<<std::endl;
+    // XXX REMOVE AFTER TESTING!
+    try {
+        parser.write(output_type::ALL, "test_output.upv");
+    } catch (std::exception e) {
+        std::cerr<<"Write Error: "<<e.what()<<std::endl;
+        return false;
+    }
+    std::cout<<"Sucessfully wrote to the output file!"<<std::endl;
     return true;
 }

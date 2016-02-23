@@ -57,12 +57,12 @@ namespace open_json {
         class json_object {
         public:
             virtual void read(json json_data) = 0;
-            virtual void write(json json_data) = 0;
+            virtual json::object_t get_json() = 0;
         };
         
         namespace shapes {
             enum class shape_type {
-                RECTANGLE, ROUNDED_RECTANGLE, ARC, CIRCLE, LABEL, LINE, POLYGON, BEZIER_CURVE
+                RECTANGLE, ROUNDED_RECTANGLE, ARC, CIRCLE, LABEL, LINE, ROUNDED_SEGMENT, POLYGON, BEZIER_CURVE
             };
             
             class shape;
@@ -70,6 +70,7 @@ namespace open_json {
             typedef std::map<shape_type, create_function> shape_registry_type;
             extern shape_registry_type shape_registry;
             extern std::map<std::string, shape_type> shape_typename_registry;
+            extern std::map<shape_type, std::string> name_shape_type_registry;
             
             class shape : public json_object {
             public:
@@ -80,7 +81,7 @@ namespace open_json {
             public:
                 shape (json json_data, shape_type shape_type) : type(shape_type) { this->read(json_data); }
                 virtual void read(json json_data) override;
-                virtual void write(json json_data) override;
+                virtual json::object_t get_json() override;
                 static std::shared_ptr<shape> new_shape(shape_type type, json json_data) {
                     if (shape_registry.find(type) == shape_registry.end()) {
                         return nullptr;
@@ -88,36 +89,108 @@ namespace open_json {
                     return shape_registry[type](json_data);
                 }
             };
-                
+            
+            class rectangle : public shape {
+                unsigned int line_width = 10;
+                int width = 0, height = 0;
+                point position;
+            protected:
+                rectangle(json json_data, shape_type type) : shape(json_data, type) { this->read(json_data); }
+            public:
+                rectangle(json json_data) : rectangle(json_data, shape_type::RECTANGLE) {}
+                virtual void read(json json_data) override;
+                virtual json::object_t get_json() override;
+            };
+            
+            class rounded_rectangle : public rectangle {
+                int radius = 3; // Corner rounding radius
+            public:
+                rounded_rectangle(json json_data) : rectangle(json_data, shape_type::ROUNDED_RECTANGLE) { this->read(json_data); }
+                void read(json json_data) override;
+                json::object_t get_json() override;
+            };
+            
+            class arc : public shape {
+                float start_angle = 0.0f, end_angle = 0.0f;
+                int radius = 3;
+                bool is_clockwise = true;
+                unsigned int width = 0;
+                point position;
+            public:
+                arc(json json_data) : shape(json_data, shape_type::ARC) { this->read(json_data); }
+                void read(json json_data) override;
+                json::object_t get_json() override;
+            };
+            
+            class circle : public shape {
+                unsigned int line_width = 10;
+                int radius = 3;
+                point position;
+            public:
+                circle(json json_data) : shape(json_data, shape_type::CIRCLE) { this->read(json_data); }
+                void read(json json_data) override;
+                json::object_t get_json() override;
+            };
+                            
             class label : public shape {
                 enum class alignment {
                     LEFT, RIGHT, CENTER
                 };
                 
-                // What is this used for?
                 enum class baseline_types {
-                    ALPHABET,
+                    ALPHABETIC,
+                    MIDDLE,
+                    HANGING
                 };
             
                 alignment align = alignment::LEFT;
-                baseline_types baseline = baseline_types::ALPHABET;
+                baseline_types baseline = baseline_types::ALPHABETIC;
                 std::string font_family;
                 std::string text;
                 int font_size = 10;
                 point position;
             public:
                 label(json json_data) : shape(json_data, shape_type::LABEL) { this->read(json_data); }
+                std::string get_text() { return this->text; }
                 void read(json json_data) override;
-                void write(json json_data) override;
+                json::object_t get_json() override;
             };
             
             class line : public shape {
                 unsigned int width = 10;
                 point start, end;
+            protected:
+                line(json json_data, shape_type type) : shape(json_data, type) { this->read(json_data); }
             public:
-                line(json json_data) : shape(json_data, shape_type::LINE) { this->read(json_data); }
+                line(json json_data) : line(json_data, shape_type::LINE) { }
+                virtual void read(json json_data) override;
+                virtual json::object_t get_json() override;
+            };
+            
+            class rounded_segment : public line {
+                int radius = 3;
+            public:
+                rounded_segment(json json_data) : line(json_data, shape_type::ROUNDED_SEGMENT) { this->read(json_data); }
                 void read(json json_data) override;
-                void write(json json_data) override;
+                json::object_t get_json() override;
+            };
+            
+            class polygon : public shape {
+                unsigned int line_width = 10;
+                std::vector<point> points;
+                std::vector<shape_type> shape_types;
+            public:
+                polygon(json json_data) : shape(json_data, shape_type::POLYGON) { this->read(json_data); }
+                void read(json json_data) override;
+                json::object_t get_json() override;
+            };
+            
+            class bezier_curve : public shape {
+                point start, end, control_point1, control_point2;
+            public:
+                bezier_curve(json json_data) : shape(json_data, shape_type::BEZIER_CURVE) { this->read(json_data); }
+                void read(json json_data) override;
+                json::object_t get_json() override;
             };
             
             // Factory
@@ -135,7 +208,7 @@ namespace open_json {
         public:
             annotation(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class symbol_attribute : public json_object {
@@ -146,7 +219,7 @@ namespace open_json {
         public:
             symbol_attribute(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class footprint_attribute : public json_object {
@@ -157,7 +230,7 @@ namespace open_json {
         public:
             footprint_attribute(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class action_region : public json_object {
@@ -170,7 +243,7 @@ namespace open_json {
         public:
             action_region(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class body : public json_object {
@@ -185,7 +258,7 @@ namespace open_json {
         public:
             body(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         // Why are there two different generated object objects????
@@ -197,8 +270,8 @@ namespace open_json {
             point position;
         public:
             generated_object_attribute(json json_data) { this->read(json_data); }
-            void read(json json_data) override;
-            void write(json json_data) override;
+            virtual void read(json json_data) override;
+            virtual json::object_t get_json() override;
         };
             
         class generated_object : public generated_object_attribute {
@@ -206,7 +279,7 @@ namespace open_json {
         public:
             generated_object(json json_data) : generated_object_attribute(json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
 
         class symbol : public json_object {
@@ -214,7 +287,7 @@ namespace open_json {
         public:
             symbol(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class footprint : public json_object {
@@ -223,25 +296,26 @@ namespace open_json {
         public:
             footprint(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class component : public json_object {
-            std::string library_id;
+            std::string library_id, name;
             std::map<std::string, std::string> attributes;
             std::vector<footprint> footprints;
             std::vector<symbol> symbols;
         public:
             component(json json_data, std::string id) : library_id(id) { this->read(json_data); }
+            std::string get_library_id() { return this->library_id; }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class component_instance : public json_object {
             typedef struct {
                 bool flip = false;
                 float rotation = 0.0f;
-                std::string layer_name;
+                std::string side;
                 point position;
             } footprint_pos_data;
             
@@ -256,7 +330,7 @@ namespace open_json {
         public:
             component_instance(std::shared_ptr<component> def, json json_data) : component_def(def) { read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
             std::string get_id() { return instance_id; }
         };
         
@@ -278,7 +352,7 @@ namespace open_json {
         public:
             net_point(json json_data, std::string id) : point_id(id) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class net : public json_object {
@@ -292,10 +366,11 @@ namespace open_json {
             std::string net_id;
             type net_type = type::NETS;
             std::map<std::string, std::shared_ptr<net_point>> points;
+            std::vector<std::string> signals;
         public:
             net(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
             std::string get_id() { return net_id; }
         };
         
@@ -312,7 +387,45 @@ namespace open_json {
         public:
             trace(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
+        };
+        
+        enum class pour_polygon_type {
+            GENERAL_POLYGON_SET,
+            GENERAL_POLYGON
+        };
+        
+        class pour_polygon_base : public json_object {
+            pour_polygon_type type;
+            bool flip = false;
+            float rotation = 0.0f;
+            std::map<std::string, std::string> styles;
+        public:
+            pour_polygon_base(json json_data, pour_polygon_type poly_type) : type(poly_type) { this->read(json_data); }
+            virtual void read(json json_data) override;
+            virtual json::object_t get_json() override;
+        };
+        
+        class pour_polygon : public pour_polygon_base {
+            typedef struct {
+                std::vector<point> points;
+            } polygon_points;
+            
+            unsigned int line_width = 10;
+            std::vector<polygon_points> holes;
+            polygon_points pour_outline;
+        public:
+            pour_polygon(json json_data) : pour_polygon_base(json_data, pour_polygon_type::GENERAL_POLYGON) { this->read(json_data); }
+            void read(json json_data) override;
+            json::object_t get_json() override;
+        };
+        
+        class pour_polygon_set : public pour_polygon_base {
+            std::vector<std::shared_ptr<pour_polygon_base>> sub_polygons;
+        public:
+            pour_polygon_set(json json_data) : pour_polygon_base(json_data, pour_polygon_type::GENERAL_POLYGON_SET) { this->read(json_data); }
+            void read(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class pour : public json_object {
@@ -321,12 +434,12 @@ namespace open_json {
             std::string layer_name;
             int order_index = 0;
             std::vector<point> points;
-            // TODO There is a "polygons" object that doesn't make sense to me
+            std::shared_ptr<pour_polygon_base> pour_polygons;
             std::vector<shapes::shape_type> shape_types;
         public:
             pour(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class pcb_text : public json_object {
@@ -338,7 +451,7 @@ namespace open_json {
         public:
             pcb_text(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         // Why are there two different layout objects????
@@ -349,8 +462,8 @@ namespace open_json {
             point position;
         public:
             layout_body_attribute(json json_data) { this->read(json_data); }
-            void read(json json_data) override;
-            void write(json json_data) override;
+            virtual void read(json json_data) override;
+            virtual json::object_t get_json() override;
         };
         
         class layout_object : public layout_body_attribute {
@@ -359,7 +472,7 @@ namespace open_json {
         public:
             layout_object(json json_data) : layout_body_attribute(json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
 
         class layer_option : public json_object {
@@ -369,7 +482,7 @@ namespace open_json {
         public:
             layer_option(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
         
         class design_info : public json_object {
@@ -391,7 +504,7 @@ namespace open_json {
         public:
             design_info(json json_data) { this->read(json_data); }
             void read(json json_data) override;
-            void write(json json_data) override;
+            json::object_t get_json() override;
         };
     };
     
@@ -418,10 +531,12 @@ namespace open_json {
     public:
         data(json json_data) { this->read(json_data); }
         void read(json json_data) override;
-        void write(json json_data) override;
+        json::object_t get_json() override;
     };
     
     class open_json_format : public eda_format {
+    private:
+        std::vector<std::shared_ptr<data>> parsed_data;
     public:
         void read(std::initializer_list<std::string> files) override;
         void write(output_type type, std::string out_file) override;
