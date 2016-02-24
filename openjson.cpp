@@ -1427,7 +1427,7 @@ void open_json::open_json_format::write(output_type type, std::string out_file) 
     for (auto data : this->parsed_data) {
         std::ofstream file_stream(out_file);
         json raw_json = data->get_json();
-        file_stream << std::setw(4) << raw_json << std::endl;
+        file_stream << /* std::setw(4) << */ raw_json << std::endl;
         file_stream.close();
     }
 }
