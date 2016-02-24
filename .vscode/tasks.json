@@ -14,13 +14,39 @@
     "isShellCommand": true,
     "tasks": [
         {
-            "taskName": "Makefile",
+            "taskName": "Debug",
+            // Dont add the task name to arguments
+            "suppressTaskName": true,
             // Make this the default build command.
             "isBuildCommand": true,
             // Show the output window only if unrecognized errors occur.
             "showOutput": "always",
             // No args
-            "args": ["clean", "all"],
+            "args": ["clean", "debug"],
+            // Use the standard less compilation problem matcher.
+            "problemMatcher": {
+                "owner": "cpp",
+                "fileLocation": ["relative", "${workspaceRoot}"],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                }
+            }
+        },
+        {
+            "taskName": "Release",
+            // Dont add the task name to arguments
+            "suppressTaskName": true,
+            // Make this the default build command.
+            "isBuildCommand": false,
+            // Show the output window only if unrecognized errors occur.
+            "showOutput": "always",
+            // No args
+            "args": ["clean", "release"],
             // Use the standard less compilation problem matcher.
             "problemMatcher": {
                 "owner": "cpp",

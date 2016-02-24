@@ -1,7 +1,7 @@
 IDIR=include
 CC=clang
 CXX=clang++
-CFLAGS=-g -O0 -I$(IDIR)
+CFLAGS=-march=native -I$(IDIR)
 CXXFLAGS=$(CFLAGS) -std=c++11
 
 OUTNAME=converter
@@ -24,10 +24,16 @@ $(ODIR)/%.o: %.c $(DEPS)
 $(ODIR)/%.o: %.cpp $(DEPS)
 	$(CXX) -c -o $@ $< $(CXXFLAGS)
 
-all: $(OBJ)
-	$(CXX) -o $(OUTDIR)/$(OUTNAME) $^ $(CXXFLAGS) $(LIBS)
-
-.PHONY: clean
+.PHONY: all clean release debug
 
 clean:
 	rm -f $(ODIR)/*.o *~ core $(IDIR)/*~ $(OUTDIR)/$(OUTNAME)
+
+release: CFLAGS += -03
+release: all
+
+debug: CFLAGS += -g -O0
+debug: all
+
+all: $(OBJ)
+	$(CXX) -o $(OUTDIR)/$(OUTNAME) $^ $(CXXFLAGS) $(LIBS)
