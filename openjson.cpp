@@ -47,7 +47,7 @@ std::map<open_json::types::shapes::shape_type, std::string> open_json::types::sh
 void open_json::data::read(json json_data) {
     if (json_data.find("version") != json_data.end()) {
         // TODO Move the hard-coded current version number
-        std::vector<std::string> tokens = split(json_data["version"].value("file_version", "0.2.0"), "\\.");
+        std::vector<std::string> tokens = split(open_json::get_value_or_default<std::string>(json_data["version"], "file_version", "0.2.0"), "\\.");
         if (tokens.size() >= 3) {
             try {
                 this->version_info.major = std::stoi(tokens[0]);
@@ -57,7 +57,7 @@ void open_json::data::read(json json_data) {
                 std::cerr<<"Invalid file version assuming: "<<this->version_info.major<<"."<<this->version_info.minor<<"."<<this->version_info.build<<std::endl;
             }
         }
-        this->version_info.exporter = json_data["version"].value("exporter", "None");
+        this->version_info.exporter = open_json::get_value_or_default<std::string>(json_data["version"], "exporter", "None");
     }
     
     if (this->version_info.major < 1 && this->version_info.minor < 2) {
@@ -228,13 +228,13 @@ void open_json::types::design_info::read(json json_data) {
             this->metadata.attached_links.push_back(url);
         }
         
-        this->metadata.description = json_data["metadata"].value("description", "");
-        this->metadata.design_id = json_data["metadata"].value("design_id", "0000000000000000");
-        this->metadata.license = json_data["metadata"].value("license", "Unknown");
-        this->metadata.name = json_data["metadata"].value("name", "Untitled");
-        this->metadata.owner = json_data["metadata"].value("owner", "Unknown");
-        this->metadata.slug = json_data["metadata"].value("slug", this->metadata.name);
-        this->metadata.last_updated = json_data["metadata"].value("updated_timestamp", std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+        this->metadata.description = open_json::get_value_or_default<std::string>(json_data["metadata"], "description", "");
+        this->metadata.design_id = open_json::get_value_or_default<std::string>(json_data["metadata"], "design_id", "0000000000000000");
+        this->metadata.license = open_json::get_value_or_default<std::string>(json_data["metadata"], "license", "Unknown");
+        this->metadata.name = open_json::get_value_or_default<std::string>(json_data["metadata"], "name", "Untitled");
+        this->metadata.owner = open_json::get_value_or_default<std::string>(json_data["metadata"], "owner", "Unknown");
+        this->metadata.slug = open_json::get_value_or_default(json_data["metadata"], "slug", this->metadata.name);
+        this->metadata.last_updated = open_json::get_value_or_default(json_data["metadata"], "updated_timestamp", std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
     }
 }
 
@@ -261,7 +261,7 @@ json::object_t open_json::types::design_info::get_json() {
 
 // Component
 void open_json::types::component::read(json json_data) {
-    this->name = json_data.value("name", "Unamed");
+    this->name = open_json::get_value_or_default<std::string>(json_data, "name", "Unamed");
     
     if (json_data.find("attributes") != json_data.end()) {
         types::populate_attributes(this->attributes, json_data["attributes"]);
@@ -298,9 +298,9 @@ json::object_t open_json::types::component::get_json() {
 
 // Component Instance
 void open_json::types::component_instance::read(json json_data) {
-    this->instance_id = json_data.value("instance_id", "0000000000000000");
-    this->symbol_index = json_data.value("symbol_index", this->symbol_index);
-    this->footprint_index = json_data.value("footprint_index", this->footprint_index);
+    this->instance_id = open_json::get_value_or_default<std::string>(json_data, "instance_id", "0000000000000000");
+    this->symbol_index = open_json::get_value_or_default(json_data, "symbol_index", this->symbol_index);
+    this->footprint_index = open_json::get_value_or_default(json_data, "footprint_index", this->footprint_index);
     
     if (json_data.find("attributes") != json_data.end()) {
         types::populate_attributes(this->attributes, json_data["attributes"]);
@@ -327,12 +327,9 @@ void open_json::types::component_instance::read(json json_data) {
     if (json_data.find("footprint_pos") != json_data.end()) {
         json json_object = json_data["footprint_pos"];
         this->footprint_pos.flip = open_json::get_boolean(json_object["flip"]);
-        // Account for possible null in format version 0.1.0
-        if (json_object.find("side") != json_object.end() && !json_object["side"].is_null()) {
-            this->footprint_pos.side = json_object.value("side", this->footprint_pos.side);
-        }
-        this->footprint_pos.rotation = json_object.value("rotation", this->footprint_pos.rotation);
-        this->footprint_pos.position = open_json::types::point(json_object.value("x", this->footprint_pos.position.x), json_object.value("y", this->footprint_pos.position.y));
+        this->footprint_pos.side = open_json::get_value_or_default(json_object, "side", this->footprint_pos.side);
+        this->footprint_pos.rotation = open_json::get_value_or_default(json_object, "rotation", this->footprint_pos.rotation);
+        this->footprint_pos.position = open_json::types::point(open_json::get_value_or_default(json_object, "x", this->footprint_pos.position.x), open_json::get_value_or_default(json_object, "y", this->footprint_pos.position.y));
     }
 }
 
@@ -400,15 +397,10 @@ json::object_t open_json::types::footprint::get_json() {
 
 // Footprint Attribute
 void open_json::types::footprint_attribute::read(json json_data) {
-    this->rotation = json_data.value("rotation", this->rotation);
+    this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
     this->flip = open_json::get_boolean(json_data["flip"]);
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
-    // Account for a bug in the offical Upverter importer(exporter?) where the value for the layer key can be null???
-    if (json_data.find("layer") != json_data.end() && json_data["layer"].is_null()) {
-        this->layer_name = "Unamed";
-    } else {
-        this->layer_name = json_data.value("layer", "Unnamed");
-    }
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
+    this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
 }
 
 json::object_t open_json::types::footprint_attribute::get_json() {
@@ -443,8 +435,8 @@ json::object_t open_json::types::symbol::get_json() {
 
 // Symbol Attribute
 void open_json::types::symbol_attribute::read(json json_data) {
-    this->rotation = json_data.value("rotation", this->rotation);
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
+    this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
     this->flip = open_json::get_boolean(json_data["flip"]);
     this->hidden = open_json::get_boolean(json_data["hidden"]);
     
@@ -473,11 +465,11 @@ json::object_t open_json::types::symbol_attribute::get_json() {
 
 // Body
 void open_json::types::body::read(json json_data) {
-    this->rotation = json_data.value("rotation", this->rotation);
+    this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
     this->flip = open_json::get_boolean(json_data["flip"]);
     this->moveable = open_json::get_boolean(json_data["moveable"], true);
     this->removeable = open_json::get_boolean(json_data["removeable"], true);
-    this->layer_name = json_data.value("layer", "Unnamed");
+    this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
     
     if (json_data.find("connection_indexes") != json_data.end()) {
         for (int connection : json_data["connection_indexes"]) {
@@ -577,10 +569,10 @@ json::object_t open_json::types::generated_object::get_json() {
 
 // Generated Object Attribute
 void open_json::types::generated_object_attribute::read(json json_data) {
-    this->layer_name = json_data.value("layer", "Unnamed");
+    this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
     this->flip = open_json::get_boolean(json_data["flip"]);
-    this->rotation = json_data.value("rotation", this->rotation);
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
+    this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
     
     if (json_data.find("attributes") != json_data.end()) {
         types::populate_attributes(this->attributes, json_data["attributes"]);
@@ -601,22 +593,17 @@ json::object_t open_json::types::generated_object_attribute::get_json() {
 void open_json::types::action_region::read(json json_data) {
     if (this->file_data->version_info.major < 1 && this->file_data->version_info.minor < 2) {
         // Pins to Action Region
-        this->ref_id = this->name = json_data.value("pin_number", "0");
+        this->ref_id = this->name = open_json::get_value_or_default<std::string>(json_data, "pin_number", "0");
         // Move label to shapes
         if (json_data.find("label") != json_data.end()) {
-            if (json_data["label"].find("type") == json_data["label"].end()) {
-                throw new parse_exception("Invalid label! label has no type specifier!");
-            }
-            if (json_data["label"]["type"] != open_json::types::shapes::name_shape_type_registry[open_json::types::shapes::shape_type::LABEL]) {
-                throw new parse_exception("Label is not of the label type!");
-            }
-            dynamic_cast<types::body*>(this->parent)->add_shape(open_json::types::shapes::shape::new_shape(open_json::types::shapes::shape_typename_registry[json_data["label"]["type"]], this->parent, this->file_data, json_data["label"]));
+            // Apparently you cannot count on the label object having the "type" field
+            dynamic_cast<types::body*>(this->parent)->add_shape(open_json::types::shapes::shape::new_shape(open_json::types::shapes::shape_type::LABEL, this->parent, this->file_data, json_data["label"]));
             // Set the name to the label text, or if for some reason it doesn't exist use the pin_number text
-            this->name = json_data["label"].value("text", this->name);
+            this->name = open_json::get_value_or_default(json_data["label"], "text", this->name);
         }
     } else {
-        this->name = json_data.value("name", "Unnamed Region");
-        this->ref_id = json_data.value("ref", this->name);
+        this->name = open_json::get_value_or_default<std::string>(json_data, "name", "Unnamed Region");
+        this->ref_id = open_json::get_value_or_default(json_data, "ref", this->name);
     }
 
     if (json_data.find("attributes") != json_data.end()) {
@@ -635,11 +622,11 @@ void open_json::types::action_region::read(json json_data) {
     }
     
     if (json_data.find("p1") != json_data.end()) {
-        this->p1 = open_json::types::point(json_data["p1"].value("x", this->p1.x), json_data["p1"].value("y", this->p1.y));
+        this->p1 = open_json::types::point(open_json::get_value_or_default(json_data["p1"], "x", this->p1.x), open_json::get_value_or_default(json_data["p1"], "y", this->p1.y));
     }
     
     if (json_data.find("p2") != json_data.end()) {
-        this->p2 = open_json::types::point(json_data["p2"].value("x", this->p2.x), json_data["p2"].value("y", this->p2.y));
+        this->p2 = open_json::types::point(open_json::get_value_or_default(json_data["p2"], "x", this->p2.x), open_json::get_value_or_default(json_data["p2"], "y", this->p2.y));
     }
 }
 
@@ -661,8 +648,8 @@ json::object_t open_json::types::action_region::get_json() {
 
 // Annotation
 void open_json::types::annotation::read(json json_data) {
-    this->rotation = json_data.value("rotation", this->rotation);
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
+    this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
     this->flip = open_json::get_boolean(json_data["flip"]);
     this->visible = open_json::get_boolean(json_data["visible"], true);
     
@@ -689,8 +676,8 @@ json::object_t open_json::types::annotation::get_json() {
 
 // Layer Option
 void open_json::types::layer_option::read(json json_data) {
-    this->ident = json_data.value("ident", json_data.value("name", "Unnamed"));
-    this->name = json_data.value("name", this->ident);
+    this->ident = open_json::get_value_or_default(json_data, "ident", open_json::get_value_or_default<std::string>(json_data, "name", "Unnamed"));
+    this->name = open_json::get_value_or_default(json_data, "name", this->ident);
     this->is_copper = open_json::get_boolean(json_data["is_copper"], true);
 }
 
@@ -705,9 +692,9 @@ json::object_t open_json::types::layer_option::get_json() {
 // Layout Object Attribute
 void open_json::types::layout_body_attribute::read(json json_data) {
     this->flip = open_json::get_boolean(json_data["flip"]);
-    this->layer_name = json_data.value("layer", "Unnamed");
-    this->rotation = json_data.value("rotation", this->rotation);
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
+    this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
+    this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
 }
 
 json::object_t open_json::types::layout_body_attribute::get_json() {
@@ -749,9 +736,9 @@ json::object_t open_json::types::layout_object::get_json() {
 void open_json::types::pcb_text::read(json json_data) {
     this->flip = open_json::get_boolean(json_data["flip"]);
     this->visible = open_json::get_boolean(json_data["visible"], true);
-    this->layer_name = json_data.value("layer", "Unnamed");
-    this->rotation = json_data.value("rotation", this->rotation);
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
+    this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
+    this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
     
     if (json_data.find("label") != json_data.end()) {
         this->label = std::shared_ptr<open_json::types::shapes::label>(new open_json::types::shapes::label(dynamic_cast<types::json_object*>(this), this->file_data, json_data["label"]));
@@ -778,7 +765,7 @@ json::object_t open_json::types::pcb_text::get_json() {
 // Pour Polygon Base
 void open_json::types::pour_polygon_base::read(json json_data) {
     this->flip = open_json::get_boolean(json_data["flip"]);
-    this->rotation = json_data.value("rotation", this->rotation);
+    this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
     
     if (json_data.find("styles") != json_data.end()) {
         open_json::types::populate_attributes(this->styles, json_data["styles"]);
@@ -806,7 +793,7 @@ json::object_t open_json::types::pour_polygon_base::get_json() {
 
 // Pour Polygon
 void open_json::types::pour_polygon::read(json json_data) {
-    this->line_width = json_data.value("line_width", this->line_width);
+    this->line_width = open_json::get_value_or_default(json_data, "line_width", this->line_width);
     
     if (json_data.find("holes") != json_data.end()) {
         for (json polygon : json_data["holes"]) {
@@ -884,9 +871,9 @@ json::object_t open_json::types::pour_polygon_set::get_json() {
 
 // Pour
 void open_json::types::pour::read(json json_data) {
-    this->attached_net_id = json_data.value("attached_net", "Unnamed");
-    this->layer_name = json_data.value("layer", "Unnamed");
-    this->order_index = json_data.value("rotation", this->order_index);
+    this->attached_net_id = open_json::get_value_or_default<std::string>(json_data, "attached_net", "Unnamed");
+    this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
+    this->order_index = open_json::get_value_or_default(json_data, "rotation", this->order_index);
     
     if (json_data.find("attributes") != json_data.end()) {
         types::populate_attributes(this->attributes, json_data["attributes"]);
@@ -944,15 +931,15 @@ json::object_t open_json::types::pour::get_json() {
 
 // Trace
 void open_json::types::trace::read(json json_data) {
-    this->layer_name = json_data.value("layer", "Unnamed");
-    this->width = json_data.value("width", 254000.0);
+    this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
+    this->width = open_json::get_value_or_default(json_data, "width", 254000.0);
 
     if (json_data.find("p1") != json_data.end()) {
-        this->start = open_json::types::point(json_data["p1"].value("x", this->start.x), json_data["p1"].value("y", this->start.y));
+        this->start = open_json::types::point(open_json::get_value_or_default(json_data["p1"], "x", this->start.x), open_json::get_value_or_default(json_data["p1"], "y", this->start.y));
     }
     
     if (json_data.find("p2") != json_data.end()) {
-        this->end = open_json::types::point(json_data["p2"].value("x", this->end.x), json_data["p2"].value("y", this->end.y));
+        this->end = open_json::types::point(open_json::get_value_or_default(json_data["p2"], "x", this->end.x), open_json::get_value_or_default(json_data["p2"], "y", this->end.y));
     }
     
     for (json::object_t point : json_data["control_points"]) {
@@ -1003,7 +990,7 @@ json::object_t open_json::types::trace::get_json() {
 
 // Net
 void open_json::types::net::read(json json_data) {
-    this->net_id = json_data.value("net_id", "0000000000000000");
+    this->net_id = open_json::get_value_or_default<std::string>(json_data, "net_id", "0000000000000000");
     
     if (json_data.find("net_type") != json_data.end()) {
         if (json_data["net_type"] == "nets") {
@@ -1067,7 +1054,7 @@ json::object_t open_json::types::net::get_json() {
 
 // Net Point
 void open_json::types::net_point::read(json json_data) {
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
     
     for (std::string point_id : json_data["connected_points"]) {
         this->connected_point_ids.push_back(point_id);
@@ -1077,11 +1064,11 @@ void open_json::types::net_point::read(json json_data) {
     if (json_data.find("connected_action_regions") != json_data.end()) {
         for (json connected_action_region : json_data["connected_action_regions"]) {
             this->connected_action_regions.emplace_back(
-                connected_action_region.value("action_region_index", 0),
-                connected_action_region.value("body_index", 0),
-                connected_action_region.value("instance_id", "0000000000000000"),
-                connected_action_region.value("order", 0),
-                connected_action_region.value("signal", "")
+                open_json::get_value_or_default(connected_action_region, "action_region_index", 0),
+                open_json::get_value_or_default(connected_action_region, "body_index", 0),
+                open_json::get_value_or_default<std::string>(connected_action_region, "instance_id", "0000000000000000"),
+                open_json::get_value_or_default(connected_action_region, "order", 0),
+                open_json::get_value_or_default<std::string>(connected_action_region, "signal", "")
             );
         }
     }
@@ -1164,7 +1151,7 @@ json::object_t open_json::types::net_point::get_json() {
 // Shape
 void open_json::types::shapes::shape::read(json json_data) {
     this->flip = open_json::get_boolean(json_data["flip"]);
-    this->rotation = json_data.value("rotation", this->rotation);
+    this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
     
     if (json_data.find("styles") != json_data.end()) {
         open_json::types::populate_attributes(this->styles, json_data["styles"]);
@@ -1182,10 +1169,10 @@ json::object_t open_json::types::shapes::shape::get_json() {
 
 // Rectangle
 void open_json::types::shapes::rectangle::read(json json_data) {
-    this->width = json_data.value("width", this->width);
-    this->height = json_data.value("height", this->height);
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
-    this->line_width = json_data.value("line_width", this->line_width);
+    this->width = open_json::get_value_or_default(json_data, "width", this->width);
+    this->height = open_json::get_value_or_default(json_data, "height", this->height);
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
+    this->line_width = open_json::get_value_or_default(json_data, "line_width", this->line_width);
 }
 
 json::object_t open_json::types::shapes::rectangle::get_json() {
@@ -1200,7 +1187,7 @@ json::object_t open_json::types::shapes::rectangle::get_json() {
 
 // Rounded Rectangle
 void open_json::types::shapes::rounded_rectangle::read(json json_data) {
-    this->radius = json_data.value("radius", this->radius);
+    this->radius = open_json::get_value_or_default(json_data, "radius", this->radius);
 }
 
 json::object_t open_json::types::shapes::rounded_rectangle::get_json() {
@@ -1212,11 +1199,11 @@ json::object_t open_json::types::shapes::rounded_rectangle::get_json() {
 // Arc
 void open_json::types::shapes::arc::read(json json_data) {
     this->is_clockwise = open_json::get_boolean(json_data["is_clockwise"], true);
-    this->start_angle = json_data.value("start_angle", this->start_angle);
-    this->end_angle = json_data.value("end_angle", this->end_angle);
-    this->radius = json_data.value("radius", this->radius);
-    this->width = json_data.value("width", this->width);
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
+    this->start_angle = open_json::get_value_or_default(json_data, "start_angle", this->start_angle);
+    this->end_angle = open_json::get_value_or_default(json_data, "end_angle", this->end_angle);
+    this->radius = open_json::get_value_or_default(json_data, "radius", this->radius);
+    this->width = open_json::get_value_or_default(json_data, "width", this->width);
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
 }
 
 json::object_t open_json::types::shapes::arc::get_json() {
@@ -1233,12 +1220,9 @@ json::object_t open_json::types::shapes::arc::get_json() {
 
 // Circle
 void open_json::types::shapes::circle::read(json json_data) {
-    this->radius = json_data.value("radius", this->radius);
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
-    // Account for export bug on the offical Upverter site.
-    if (json_data.find("line_width") != json_data.end() && json_data["line_width"].is_number()) {
-        this->line_width = json_data.value("line_width", this->line_width);
-    }
+    this->radius = open_json::get_value_or_default(json_data, "radius", this->radius);
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
+    this->line_width = open_json::get_value_or_default(json_data, "line_width", this->line_width);
 }
 
 json::object_t open_json::types::shapes::circle::get_json() {
@@ -1253,10 +1237,10 @@ json::object_t open_json::types::shapes::circle::get_json() {
 // Label
 void open_json::types::shapes::label::read(json json_data) {
     // Default to sans serif
-    this->font_family = json_data.value("font_family", "sans-serif");
-    this->font_size = json_data.value("font_size", this->font_size);
-    this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
-    this->text = json_data.value("text", "");
+    this->font_family = open_json::get_value_or_default<std::string>(json_data, "font_family", "sans-serif");
+    this->font_size = open_json::get_value_or_default(json_data, "font_size", this->font_size);
+    this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
+    this->text = open_json::get_value_or_default<std::string>(json_data, "text", "");
     
     if (json_data.find("align") != json_data.end()) {
         if (json_data["align"] == "left") {
@@ -1318,14 +1302,14 @@ json::object_t open_json::types::shapes::label::get_json() {
 
 // Line
 void open_json::types::shapes::line::read(json json_data) {
-    this->width = json_data.value("width", this->width);
+    this->width = open_json::get_value_or_default(json_data, "width", this->width);
     
     if (json_data.find("p1") != json_data.end()) {
-        this->start = open_json::types::point(json_data["p1"].value("x", this->start.x), json_data["p1"].value("y", this->start.y));
+        this->start = open_json::types::point(open_json::get_value_or_default(json_data["p1"], "x", this->start.x), open_json::get_value_or_default(json_data["p1"], "y", this->start.y));
     }
     
     if (json_data.find("p2") != json_data.end()) {
-        this->end = open_json::types::point(json_data["p2"].value("x", this->end.x), json_data["p2"].value("y", this->end.y));
+        this->end = open_json::types::point(open_json::get_value_or_default(json_data["p2"], "x", this->end.x), open_json::get_value_or_default(json_data["p2"], "y", this->end.y));
     }
 }
 
@@ -1341,7 +1325,7 @@ json::object_t open_json::types::shapes::line::get_json() {
 
 // Rounded Segment
 void open_json::types::shapes::rounded_segment::read(json json_data) {
-    this->radius = json_data.value("radius", this->radius);
+    this->radius = open_json::get_value_or_default(json_data, "radius", this->radius);
 }
 
 json::object_t open_json::types::shapes::rounded_segment::get_json() {
@@ -1352,7 +1336,7 @@ json::object_t open_json::types::shapes::rounded_segment::get_json() {
 
 // Polygon
 void open_json::types::shapes::polygon::read(json json_data) {
-    this->line_width = json_data.value("line_width", this->line_width);
+    this->line_width = open_json::get_value_or_default(json_data, "line_width", this->line_width);
     for (json::object_t point : json_data["points"]) {
         if (point.find("x") != point.end() && point.find("y") != point.end()) {
             this->points.emplace_back(point["x"], point["y"]);
@@ -1381,19 +1365,19 @@ json::object_t open_json::types::shapes::polygon::get_json() {
 // Bezier Curve
 void open_json::types::shapes::bezier_curve::read(json json_data) {
     if (json_data.find("p1") != json_data.end()) {
-        this->start = open_json::types::point(json_data["p1"].value("x", this->start.x), json_data["p1"].value("y", this->start.y));
+        this->start = open_json::types::point(open_json::get_value_or_default(json_data["p1"], "x", this->start.x), open_json::get_value_or_default(json_data["p1"], "y", this->start.y));
     }
     
     if (json_data.find("p2") != json_data.end()) {
-        this->end = open_json::types::point(json_data["p2"].value("x", this->end.x), json_data["p2"].value("y", this->end.y));
+        this->end = open_json::types::point(open_json::get_value_or_default(json_data["p2"], "x", this->end.x), open_json::get_value_or_default(json_data["p2"], "y", this->end.y));
     }
     
     if (json_data.find("control1") != json_data.end()) {
-        this->control_point1 = open_json::types::point(json_data["control1"].value("x", this->control_point1.x), json_data["control1"].value("y", this->control_point1.y));
+        this->control_point1 = open_json::types::point(open_json::get_value_or_default(json_data["control1"], "x", this->control_point1.x), open_json::get_value_or_default(json_data["control1"], "y", this->control_point1.y));
     }
     
     if (json_data.find("control2") != json_data.end()) {
-        this->control_point2 = open_json::types::point(json_data["control2"].value("x", this->control_point2.x), json_data["control2"].value("y", this->control_point2.y));
+        this->control_point2 = open_json::types::point(open_json::get_value_or_default(json_data["control2"], "x", this->control_point2.x), open_json::get_value_or_default(json_data["control2"], "y", this->control_point2.y));
     }
 }
 
@@ -1411,21 +1395,21 @@ json::object_t open_json::types::shapes::bezier_curve::get_json() {
 }
 
 // OpenJSON
-void open_json::open_json_format::read(std::initializer_list<std::string> files) {
-
+void open_json::open_json_format::read(std::vector<std::string> files) {
     for (std::string file : files) {
+        std::cout<<"Parsing: "<<split(file, "/").back()<<std::endl;
         std::ifstream file_stream(file);
         json raw_json_data;
         file_stream >> raw_json_data;
-        this->parsed_data.emplace_back(new data(raw_json_data));
+        this->parsed_data.emplace_back(new data(split(split(file, "/").back(), "\\.").front(), raw_json_data));
         file_stream.close();
     }
 }
 
 void open_json::open_json_format::write(output_type type, std::string out_file) {
-    // XXX This really is only usefull in testing how it is currently written. Clean this up eventually.
+    // XXX This really is only useful in testing, need to better specify output file names
     for (auto data : this->parsed_data) {
-        std::ofstream file_stream(out_file);
+        std::ofstream file_stream("./test_out/" + data->original_file_name + out_file);
         json raw_json = data->get_json();
         file_stream << /* std::setw(4) << */ raw_json << std::endl;
         file_stream.close();

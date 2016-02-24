@@ -44,6 +44,21 @@ namespace open_json {
         return value;
     }
     
+    // Unfouturnatly there seems to be a good number of null values where there shouldn't be in OpenJSON outputed by Upverter. Custom getter to prevent exceptions.
+    template<typename value_type>
+    inline value_type get_value_or_default(json object, std::string key, value_type default_value) {
+        if (object.is_null()) {
+            return default_value;
+        }
+        value_type return_value;
+        try {
+            return_value = object.value(key, default_value);
+        } catch (...) {
+            return_value = default_value;
+        }
+        return return_value;
+    }
+    
     namespace types {
         inline void populate_attributes(std::map<std::string, std::string> &attribute_map, json json_data) {
             for (json::iterator it = json_data.begin(); it != json_data.end(); it++) {
@@ -563,10 +578,10 @@ namespace open_json {
             std::string exporter;
             int major = 0, minor = 2, build = 0;
         } version;
+        std::string original_file_name;
         
         version version_info;
         std::shared_ptr<types::design_info> design_info;
-        
         std::map<std::string, std::shared_ptr<types::component>> components;
         std::map<std::string, std::shared_ptr<types::component_instance>> component_instances;
         std::map<std::string, std::shared_ptr<types::net>> nets;
@@ -578,7 +593,7 @@ namespace open_json {
         std::vector<std::shared_ptr<types::pour>> pours;
         std::vector<std::shared_ptr<types::trace>> traces;
     public:
-        data(json json_data) : json_object(nullptr) { this->read(json_data); }
+        data(std::string file_name, json json_data) : json_object(nullptr), original_file_name(file_name) { this->read(json_data); }
         void read(json json_data) override;
         json::object_t get_json() override;
     };
@@ -587,7 +602,7 @@ namespace open_json {
     private:
         std::vector<std::shared_ptr<data>> parsed_data;
     public:
-        void read(std::initializer_list<std::string> files) override;
+        void read(std::vector<std::string> files) override;
         void write(output_type type, std::string out_file) override;
     };
 };

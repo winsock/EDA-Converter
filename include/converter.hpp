@@ -2,7 +2,6 @@
 #define __CONVERTER__
 
 #include <string>
-#include <initializer_list>
 #include <vector>
 #include <stdexcept>
 
@@ -20,11 +19,9 @@ enum class output_type {
 };
 
 class converter {
-private:
-    std::vector<std::string> eda_files;
 public:
     converter();
-    bool openFiles(std::initializer_list<std::string> files);
+    bool openFiles(std::vector<std::string> files);
     bool write(eda_type type);
 };
 
@@ -35,7 +32,7 @@ public:
 
 class eda_format {
 public:
-    virtual void read(std::initializer_list<std::string> files) = 0;
+    virtual void read(std::vector<std::string> files) = 0;
     virtual void write(output_type type, std::string out_file) = 0;
 };
 
