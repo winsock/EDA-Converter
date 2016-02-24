@@ -2,10 +2,28 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
+            "preLaunchTask": "Debug",
 			"name": "Debug",
 			"type": "gdb",
 			"request": "launch",
             "arguments": "$(find ./openjson -name \"*.upv\" -printf \"./openjson/%f \")",
+			"target": "./converter",
+			"cwd": "${workspaceRoot}/bin"
+		},
+        {
+            "preLaunchTask": "Release",
+			"name": "Release",
+			"type": "gdb",
+			"request": "launch",
+            "arguments": "$(find ./openjson -name \"*.upv\" -printf \"./openjson/%f \")",
+			"target": "./converter",
+			"cwd": "${workspaceRoot}/bin"
+		},
+        {
+			"name": "Single File",
+			"type": "gdb",
+			"request": "launch",
+            "arguments": "test_file.upv",
 			"target": "./converter",
 			"cwd": "${workspaceRoot}/bin"
 		}

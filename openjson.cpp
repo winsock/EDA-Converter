@@ -80,13 +80,17 @@ void open_json::data::read(json json_data) {
         json::array_t component_instances = json_data["component_instances"];
         for (json::object_t json_object : component_instances) {
             if (json_object.find("library_id") == json_object.end()) {
-                throw new parse_exception("Component instance has no component library id!");
+                throw parse_exception("Component instance has no component library id!");
             }
             if (this->components[json_object["library_id"]] == nullptr) {
-                throw new parse_exception("Component instance has an invalid component library id!\nDid you forget to add a library?");
+                std::cerr<<"Component instance does not have a matching component definition, not adding!"<<std::endl;
             }
-            std::shared_ptr<types::component_instance> componentInstance(new types::component_instance(dynamic_cast<types::json_object*>(this), this, this->components[json_object["library_id"]], json_object));
-            this->component_instances[componentInstance->get_id()] = componentInstance;
+            try {
+                std::shared_ptr<types::component_instance> componentInstance(new types::component_instance(dynamic_cast<types::json_object*>(this), this, this->components[json_object["library_id"]], json_object));
+                this->component_instances[componentInstance->get_id()] = componentInstance;
+            } catch (parse_exception e) {
+                std::cerr<<"Not adding component instance for reason:"<<e.what()<<std::endl;
+            }
         }
     }
     
@@ -118,10 +122,19 @@ void open_json::data::read(json json_data) {
     if (json_data.find("nets") != json_data.end()) {
         for (json::object_t json_object : json_data["nets"]) {
             if (json_object.find("net_id") == json_object.end()) {
-                throw new parse_exception("Net has no net id!");
+                throw parse_exception("Net has no net id!");
             }
-            std::shared_ptr<types::net> net(new types::net(dynamic_cast<types::json_object*>(this), this, json_object));
-            this->nets[net->get_id()] = net;
+            std::shared_ptr<types::net> net(new types::net(dynamic_cast<types::json_object*>(this), this));
+            try {
+                if (net->try_read(json_object)) {
+                    this->nets[net->get_id()] = net;
+                    continue;
+                }
+            } catch (parse_exception e) {
+                std::cerr<<"Invalid net found! Skipping net:"<<net->get_id()<<" Reason: "<<e.what()<<std::endl;
+                continue;
+            }
+            std::cerr<<"Invalid net found! Skipping net:"<<net->get_id()<<std::endl;
         }
     }
     
@@ -165,11 +178,13 @@ json::object_t open_json::data::get_json() {
     
     for (auto component_instance : this->component_instances) {
         data["component_instances"].push_back(component_instance.second->get_json());
+        // Only write out the component definitions we need!
+        data["components"][component_instance.second->get_definition()->get_library_id()] = component_instance.second->get_definition()->get_json();
     }
     
-    for (auto component : this->components) {
-        data["components"][component.first] = component.second->get_json();
-    }
+    // for (auto component : this->components) {
+    //     data["components"][component.first] = component.second->get_json();
+    // }
     
     if (this->design_info.get() != nullptr) {
         data["design_attributes"] = this->design_info->get_json();
@@ -400,7 +415,14 @@ void open_json::types::footprint_attribute::read(json json_data) {
     this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
     this->flip = open_json::get_boolean(json_data["flip"]);
     this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
-    this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
+    try {
+        if (json_data["layer"].is_null()) {
+            throw parse_exception("Layer name is null! Most likely this is from a ghost component instance!");
+        }
+        this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
+    } catch (std::exception e) {
+        throw parse_exception(std::string("Error parsing layer name! Exception: ").append(e.what()));
+    }
 }
 
 json::object_t open_json::types::footprint_attribute::get_json() {
@@ -484,10 +506,10 @@ void open_json::types::body::read(json json_data) {
     if (json_data.find("shapes") != json_data.end()) {
         for (json::object_t json_object : json_data["shapes"]) {
             if (json_object.find("type") == json_object.end()) {
-                throw new parse_exception("Invalid shape! Shape has no type specifier!");
+                throw parse_exception("Invalid shape! Shape has no type specifier!");
             }
             if (open_json::types::shapes::shape_typename_registry.find(json_object["type"]) == open_json::types::shapes::shape_typename_registry.end()) {
-                throw new parse_exception("Invalid shape type specified: " + json_object["type"].get<std::string>() + "!");
+                throw parse_exception("Invalid shape type specified: " + json_object["type"].get<std::string>() + "!");
             }
             this->shapes.push_back(open_json::types::shapes::shape::new_shape(open_json::types::shapes::shape_typename_registry[json_object["type"]], dynamic_cast<types::json_object*>(this), this->file_data, json_object));
         }
@@ -569,10 +591,18 @@ json::object_t open_json::types::generated_object::get_json() {
 
 // Generated Object Attribute
 void open_json::types::generated_object_attribute::read(json json_data) {
-    this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
     this->flip = open_json::get_boolean(json_data["flip"]);
     this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
     this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
+    
+    try {
+        if (json_data["layer"].is_null()) {
+            throw parse_exception("Layer name is null! Most likely this is from a ghost component instance!");
+        }
+        this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
+    } catch (std::exception e) {
+        throw parse_exception(std::string("Error parsing layer name! Exception: ").append(e.what()));
+    }
     
     if (json_data.find("attributes") != json_data.end()) {
         types::populate_attributes(this->attributes, json_data["attributes"]);
@@ -848,7 +878,7 @@ void open_json::types::pour_polygon_set::read(json json_data) {
     if (json_data.find("polygons") != json_data.end()) {
         for (json::object_t general_polygon : json_data["polygons"]) {
             if (general_polygon.find("type") == general_polygon.end()) {
-                throw new parse_exception("Invalid polygon in pour! No polygon type specified!");
+                throw parse_exception("Invalid polygon in pour! No polygon type specified!");
             }
             
             if (general_polygon["type"] == "general_polygon") {
@@ -887,14 +917,14 @@ void open_json::types::pour::read(json json_data) {
     
     for (std::string shape_type_name : json_data["shape_types"]) {
         if (open_json::types::shapes::shape_typename_registry.find(shape_type_name) == open_json::types::shapes::shape_typename_registry.end()) {
-            throw new parse_exception("Invalid shape type specified: " + shape_type_name + "!");
+            throw parse_exception("Invalid shape type specified: " + shape_type_name + "!");
         }
         this->shape_types.push_back(open_json::types::shapes::shape_typename_registry[shape_type_name]);
     }
     
     if (json_data.find("polygons") != json_data.end()) {
         if (json_data["polygons"].find("type") == json_data["polygons"].end()) {
-            throw new parse_exception("Invalid polygon in pour! No polygon type specified!");
+            throw parse_exception("Invalid polygon in pour! No polygon type specified!");
         }
         
         if (json_data["polygons"]["type"] == "general_polygon") {
@@ -989,12 +1019,14 @@ json::object_t open_json::types::trace::get_json() {
 }
 
 // Net
-void open_json::types::net::read(json json_data) {
+bool open_json::types::net::try_read(json json_data) {
     this->net_id = open_json::get_value_or_default<std::string>(json_data, "net_id", "0000000000000000");
     
     if (json_data.find("net_type") != json_data.end()) {
         if (json_data["net_type"] == "nets") {
             this->net_type = net::type::NETS;
+        } else if (json_data["net_type"] == "modules_nets") {
+            this->net_type = net::type::MODULES_NETS;
         }
     }
     
@@ -1010,11 +1042,36 @@ void open_json::types::net::read(json json_data) {
     }
     
     if (json_data.find("points") != json_data.end()) {
+        bool check_for_inconsistencies = false;
         for (json::object_t net_object : json_data["points"]) {
             if (net_object.find("point_id") == net_object.end()) {
-                throw new parse_exception("Invalid point in net: " + this->net_id + "! Point does not contain a point id!");
+                throw parse_exception("Invalid point in net: " + this->net_id + "! Point does not contain a point id!");
             }
-            this->points[net_object["point_id"]] = std::shared_ptr<net_point>(new net_point(dynamic_cast<types::json_object*>(this), this->file_data, net_object, net_object["point_id"]));
+            auto point = std::shared_ptr<net_point>(new net_point(dynamic_cast<types::json_object*>(this), this->file_data, net_object["point_id"]));
+            if (!point->try_read(net_object)) {
+                // Adding point failed for some reason check for any inconsistencies.
+                check_for_inconsistencies = true;
+            }
+        }
+        // Check data
+        if (check_for_inconsistencies) {
+            std::cout<<"Potentially inconsistent net: "<<this->net_id<<" checking consistency"<<std::endl;
+            for (auto point : this->points) {
+                for (auto action_region_iterator = point.second->get_begining_of_connected_regions(); action_region_iterator < point.second->get_end_of_connected_regions(); action_region_iterator++) {
+                    if (this->file_data->component_instances.find(action_region_iterator->component_instance_id) == this->file_data->component_instances.end()) {
+                        // Inconsistency found, tell caller to not add this net!
+                        std::cerr<<"Inconsistency in action regions for net: "<<this->net_id<<" invalid component instance id, skipping net!"<<std::endl;
+                        return false;
+                    }
+                }
+                for (std::string id : point.second->get_connected_point_ids()) {
+                    if (this->points.find(id) == this->points.end()) {
+                        std::cerr<<"Inconsistency in connected points for net: "<<this->net_id<<" no such point with id: "<<id<<", skipping net!"<<std::endl;
+                        return false;
+                    }
+                }
+            }
+            std::cout<<"The net: "<<this->net_id<<" seems consistent and repaired. Double check the net though maunually!"<<std::endl;
         }
     }
     
@@ -1023,6 +1080,8 @@ void open_json::types::net::read(json json_data) {
             this->signals.push_back(signal_name);
         }
     }
+    
+    return true;
 }
 
 json::object_t open_json::types::net::get_json() {
@@ -1039,6 +1098,9 @@ json::object_t open_json::types::net::get_json() {
     }
     
     switch (this->net_type) {
+        case type::MODULES_NETS:
+            out["net_type"] = "modules_nets";
+            break;
         case type::NETS:
         default:
             out["net_type"] = "nets";
@@ -1053,7 +1115,7 @@ json::object_t open_json::types::net::get_json() {
 }
 
 // Net Point
-void open_json::types::net_point::read(json json_data) {
+bool open_json::types::net_point::try_read(json json_data) {
     this->position = open_json::types::point(open_json::get_value_or_default(json_data, "x", this->position.x), open_json::get_value_or_default(json_data, "y", this->position.y));
     
     for (std::string point_id : json_data["connected_points"]) {
@@ -1063,10 +1125,17 @@ void open_json::types::net_point::read(json json_data) {
     // Wont be found in versions less than 0.2.0
     if (json_data.find("connected_action_regions") != json_data.end()) {
         for (json connected_action_region : json_data["connected_action_regions"]) {
+            std::string component_instance = open_json::get_value_or_default<std::string>(connected_action_region, "instance_id", "0000000000000000");
+            // Consistency check
+            if (this->file_data->component_instances.find(component_instance) ==  this->file_data->component_instances.end()) {
+                // Refers to invalid component instance!
+                std::cerr<<"Error in connected action region for net_point:"<<this->point_id<<"! Invalid instance_id!"<<std::endl;
+                return false;
+            }
             this->connected_action_regions.emplace_back(
                 open_json::get_value_or_default(connected_action_region, "action_region_index", 0),
                 open_json::get_value_or_default(connected_action_region, "body_index", 0),
-                open_json::get_value_or_default<std::string>(connected_action_region, "instance_id", "0000000000000000"),
+                component_instance,
                 open_json::get_value_or_default(connected_action_region, "order", 0),
                 open_json::get_value_or_default<std::string>(connected_action_region, "signal", "")
             );
@@ -1077,16 +1146,19 @@ void open_json::types::net_point::read(json json_data) {
     if (json_data.find("connected_components") != json_data.end()) {
         for (json connected_component : json_data["connected_components"]) {
             if (connected_component.find("instance_id") == connected_component.end()) {
-                throw new parse_exception("Error in net! A connected component does not have an instance id! This is fatal!");
+                std::cerr<<"Error in connected action region for net_point:"<<this->point_id<<"! A connected component does not have an instance id!"<<std::endl;
+                return false;
             }
             if (connected_component.find("pin_number") == connected_component.end()) {
-                throw new parse_exception("Error in net! A connected component does not have a pin number! This is fatal!");
+                std::cerr<<"Error in connected action region for net_point:"<<this->point_id<<"! A connected component does not have a pin number!"<<std::endl;
+                return false;
             }
             if (this->file_data->component_instances.find(connected_component["instance_id"]) != this->file_data->component_instances.end()) {
                 std::shared_ptr<types::component_instance> component_instance = this->file_data->component_instances[connected_component["instance_id"]];
                 std::shared_ptr<types::symbol> symbol = component_instance->get_definition()->get_symbol_at_index(component_instance->get_symbol_index());
                 if (!symbol) {
-                    throw new parse_exception("Error in component instance! Invalid symbol index!");
+                    std::cerr<<"Error in connected action region for net_point:"<<this->point_id<<"! Invalid symbol index!"<<std::endl;
+                    return false;
                 }
                 auto get_action_region_index = [&symbol, &connected_component](size_t body_index) -> std::pair<bool, size_t> {
                     for (size_t action_region_index = 0; action_region_index < symbol->get_body_at_index(body_index)->get_number_of_action_regions(); action_region_index++) {
@@ -1114,15 +1186,18 @@ void open_json::types::net_point::read(json json_data) {
                     }
                 }
                 if (!conversion_successful) {
-                    std::cerr<<"Error converting a net to new format, couldn't find a matching pin number: "<<connected_component["pin_number"]<<std::endl;
+                    std::cerr<<"Error converting a net point("<<this->point_id<<") to new format, couldn't find a matching pin number: "<<connected_component["pin_number"]<<std::endl;
                     std::cerr<<"Make sure to check and repair and check the net with id:"<<dynamic_cast<types::net*>(this->parent)->get_id()<<"!"<<std::endl;
+                    return false;
                 }
             } else {
-                std::cerr<<"Error converting a net to new format, couldn't find component instance with id: "<<connected_component["instance_id"]<<std::endl;
+                std::cerr<<"Error converting a net point("<<this->point_id<<") to new format, couldn't find component instance with id: "<<connected_component["instance_id"]<<std::endl;
                 std::cerr<<"Make sure to check and repair and check the net with id:"<<dynamic_cast<types::net*>(this->parent)->get_id()<<"!"<<std::endl;
+                return false;
             }
         }
     }
+    return true;
 }
 
 json::object_t open_json::types::net_point::get_json() {
@@ -1344,7 +1419,7 @@ void open_json::types::shapes::polygon::read(json json_data) {
     }
     for (std::string shape_type_name : json_data["shape_types"]) {
         if (open_json::types::shapes::shape_typename_registry.find(shape_type_name) == open_json::types::shapes::shape_typename_registry.end()) {
-            throw new parse_exception("Invalid shape type specified: " + shape_type_name + "!");
+            throw parse_exception("Invalid shape type specified: " + shape_type_name + "!");
         }
         this->shape_types.push_back(open_json::types::shapes::shape_typename_registry[shape_type_name]);
     }
@@ -1409,9 +1484,9 @@ void open_json::open_json_format::read(std::vector<std::string> files) {
 void open_json::open_json_format::write(output_type type, std::string out_file) {
     // XXX This really is only useful in testing, need to better specify output file names
     for (auto data : this->parsed_data) {
-        std::ofstream file_stream("./test_out/" + data->original_file_name + out_file);
+        std::ofstream file_stream(data->original_file_name + out_file);
         json raw_json = data->get_json();
-        file_stream << /* std::setw(4) << */ raw_json << std::endl;
+        file_stream << std::setw(4) << raw_json << std::endl;
         file_stream.close();
     }
 }

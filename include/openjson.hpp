@@ -403,15 +403,19 @@ namespace open_json {
             std::vector<std::string> connected_point_ids;
             point position;
         public:
-            net_point(json_object *super, open_json::data *file,json json_data, std::string id) : json_object(super), file_data(file), point_id(id) { this->read(json_data); }
-            void read(json json_data) override;
+            net_point(json_object *super, open_json::data *file, std::string id) : json_object(super), file_data(file), point_id(id) { }
+            std::vector<connected_action_region>::iterator get_begining_of_connected_regions() { return this->connected_action_regions.begin(); }
+            std::vector<connected_action_region>::iterator get_end_of_connected_regions() { return this->connected_action_regions.end(); }
+            std::vector<std::string> get_connected_point_ids() { return this->connected_point_ids; }
+            bool try_read(json json_data);  
+            virtual void read(json json_data) override { try_read(json_data); }
             json::object_t get_json() override;
         };
         
         class net : public json_object {
-            // Are there actually any other net types?
             enum class type {
-                NETS
+                NETS,
+                MODULES_NETS
             };
         private:
             open_json::data *file_data;
@@ -422,9 +426,10 @@ namespace open_json {
             std::map<std::string, std::shared_ptr<net_point>> points;
             std::vector<std::string> signals;
         public:
-            net(json_object *super, open_json::data *file, json json_data) : json_object(super), file_data(file) { this->read(json_data); }
+            net(json_object *super, open_json::data *file) : json_object(super), file_data(file) { }
             std::string get_id() { return net_id; }
-            void read(json json_data) override;
+            bool try_read(json json_data);  
+            virtual void read(json json_data) override { try_read(json_data); }
             json::object_t get_json() override;
         };
         

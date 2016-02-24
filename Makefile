@@ -29,7 +29,7 @@ $(ODIR)/%.o: %.cpp $(DEPS)
 clean:
 	rm -f $(ODIR)/*.o *~ core $(IDIR)/*~ $(OUTDIR)/$(OUTNAME)
 
-release: CFLAGS += -03
+release: CFLAGS += -O3
 release: all
 
 debug: CFLAGS += -g -O0
