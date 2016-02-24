@@ -83,7 +83,7 @@ namespace open_json {
         
         namespace shapes {
             enum class shape_type {
-                RECTANGLE, ROUNDED_RECTANGLE, ARC, CIRCLE, LABEL, LINE, ROUNDED_SEGMENT, POLYGON, BEZIER_CURVE
+                RECTANGLE, ROUNDED_RECTANGLE, ARC, CIRCLE, LABEL, LINE, ROUNDED_SEGMENT, POLYGON, BEZIER_CURVE, GENERAL_POLYGON_SET, GENERAL_POLYGON
             };
             
             class shape;
@@ -94,7 +94,7 @@ namespace open_json {
             extern std::map<shape_type, std::string> name_shape_type_registry;
             
             class shape : public json_object {
-            private:
+            protected:
                 open_json::data *file_data;
             public:
                 shape_type type;
@@ -202,16 +202,39 @@ namespace open_json {
                 unsigned int line_width = 0;
                 std::vector<point> points;
                 std::vector<shape_type> shape_types;
+            protected:
+                polygon(json_object *super, open_json::data *file, json json_data, shape_type type) : shape(super, file, json_data, type) { this->read(json_data); }
             public:
-                polygon(json_object *super, open_json::data *file, json json_data) : shape(super, file, json_data, shape_type::POLYGON) { this->read(json_data); }
-                void read(json json_data) override;
-                json::object_t get_json() override;
+                polygon(json_object *super, open_json::data *file, json json_data) : polygon(super, file, json_data, shape_type::POLYGON) { }
+                virtual void read(json json_data) override;
+                virtual json::object_t get_json() override;
             };
             
             class bezier_curve : public shape {
                 point start, end, control_point1, control_point2;
             public:
                 bezier_curve(json_object *super, open_json::data *file, json json_data) : shape(super, file, json_data, shape_type::BEZIER_CURVE) { this->read(json_data); }
+                void read(json json_data) override;
+                json::object_t get_json() override;
+            };
+            
+            class general_polygon : public polygon {
+                typedef struct {
+                    std::vector<point> points;
+                } polygon_points;
+                
+                std::vector<polygon_points> holes;
+                polygon_points pour_outline;
+            public:
+                general_polygon(json_object *super, open_json::data *file, json json_data) : polygon(super, file, json_data, shape_type::GENERAL_POLYGON) { this->read(json_data); }
+                void read(json json_data) override;
+                json::object_t get_json() override;
+            };
+            
+            class general_polygon_set : public polygon {
+                std::vector<std::shared_ptr<shape>> sub_shapes;
+            public:
+                general_polygon_set(json_object *super, open_json::data *file, json json_data) : polygon(super, file, json_data, shape_type::GENERAL_POLYGON_SET) { this->read(json_data); }
                 void read(json json_data) override;
                 json::object_t get_json() override;
             };
@@ -450,46 +473,6 @@ namespace open_json {
             json::object_t get_json() override;
         };
         
-        enum class pour_polygon_type {
-            GENERAL_POLYGON_SET,
-            GENERAL_POLYGON
-        };
-        
-        class pour_polygon_base : public json_object {
-        protected:
-            open_json::data *file_data;
-            pour_polygon_type type;
-            bool flip = false;
-            float rotation = 0.0f;
-            std::map<std::string, std::string> styles;
-        public:
-            pour_polygon_base(json_object *super, open_json::data *file, json json_data, pour_polygon_type poly_type) : json_object(super), file_data(file), type(poly_type) { this->read(json_data); }
-            virtual void read(json json_data) override;
-            virtual json::object_t get_json() override;
-        };
-        
-        class pour_polygon : public pour_polygon_base {
-            typedef struct {
-                std::vector<point> points;
-            } polygon_points;
-            
-            unsigned int line_width = 10;
-            std::vector<polygon_points> holes;
-            polygon_points pour_outline;
-        public:
-            pour_polygon(json_object *super, open_json::data *file, json json_data) : pour_polygon_base(super, file, json_data, pour_polygon_type::GENERAL_POLYGON) { this->read(json_data); }
-            void read(json json_data) override;
-            json::object_t get_json() override;
-        };
-        
-        class pour_polygon_set : public pour_polygon_base {
-            std::vector<std::shared_ptr<pour_polygon_base>> sub_polygons;
-        public:
-            pour_polygon_set(json_object *super, open_json::data *file, json json_data) : pour_polygon_base(super, file, json_data, pour_polygon_type::GENERAL_POLYGON_SET) { this->read(json_data); }
-            void read(json json_data) override;
-            json::object_t get_json() override;
-        };
-        
         class pour : public json_object {
         private:
             open_json::data *file_data;
@@ -498,7 +481,7 @@ namespace open_json {
             std::string layer_name;
             int order_index = 0;
             std::vector<point> points;
-            std::shared_ptr<pour_polygon_base> pour_polygons;
+            std::shared_ptr<shapes::shape> pour_shape;
             std::vector<shapes::shape_type> shape_types;
         public:
             pour(json_object *super, open_json::data *file, json json_data) : json_object(super), file_data(file) { this->read(json_data); }

@@ -16,6 +16,8 @@ open_json::types::shapes::shape_registry_type open_json::types::shapes::shape_re
     {shape_type::LINE, &create<line>},
     {shape_type::ROUNDED_SEGMENT, &create<rounded_segment>},
     {shape_type::POLYGON, &create<polygon>},
+    {shape_type::GENERAL_POLYGON, &create<general_polygon>},
+    {shape_type::GENERAL_POLYGON_SET, &create<general_polygon_set>},
     {shape_type::BEZIER_CURVE, &create<bezier_curve>}
 };
 
@@ -28,6 +30,8 @@ std::map<std::string, open_json::types::shapes::shape_type> open_json::types::sh
     {"line", shape_type::LINE},
     {"rounded_segment", shape_type::ROUNDED_SEGMENT},
     {"polygon", shape_type::POLYGON},
+    {"general_polygon", shape_type::GENERAL_POLYGON},
+    {"general_polygon_set", shape_type::GENERAL_POLYGON_SET},
     {"bezier", shape_type::BEZIER_CURVE}
 };
 
@@ -40,6 +44,8 @@ std::map<open_json::types::shapes::shape_type, std::string> open_json::types::sh
     {shape_type::LINE, "line"},
     {shape_type::ROUNDED_SEGMENT, "rounded_segment"},
     {shape_type::POLYGON, "polygon"},
+    {shape_type::GENERAL_POLYGON, "general_polygon"},
+    {shape_type::GENERAL_POLYGON_SET, "general_polygon_set"},
     {shape_type::BEZIER_CURVE, "bezier"}
 };
 
@@ -803,113 +809,6 @@ json::object_t open_json::types::pcb_text::get_json() {
     return data;
 }
 
-// Pour Polygon Base
-void open_json::types::pour_polygon_base::read(json json_data) {
-    this->flip = open_json::get_boolean(json_data["flip"]);
-    this->rotation = open_json::get_value_or_default(json_data, "rotation", this->rotation);
-    
-    if (json_data.find("styles") != json_data.end()) {
-        open_json::types::populate_attributes(this->styles, json_data["styles"]);
-    }
-}
-
-json::object_t open_json::types::pour_polygon_base::get_json() {
-    json data = {
-        {"flip", this->flip},
-        {"rotation", this->rotation},
-        {"styles", this->styles}
-    };
-    
-    switch (this->type) {
-        case pour_polygon_type::GENERAL_POLYGON_SET:
-            data["type"] = "general_polygon_set";
-            break;
-        case pour_polygon_type::GENERAL_POLYGON:
-        default:
-            data["type"] = "general_polygon";
-            break;
-    }
-    return data;
-}
-
-// Pour Polygon
-void open_json::types::pour_polygon::read(json json_data) {
-    this->line_width = open_json::get_value_or_default(json_data, "line_width", this->line_width);
-    
-    if (json_data.find("holes") != json_data.end()) {
-        for (json polygon : json_data["holes"]) {
-            if (polygon.find("points") != polygon.end()) {
-                std::vector<point> polygon_vertices;
-                for (json::object_t point : polygon["points"]) {
-                    if (point.find("x") != point.end() && point.find("y") != point.end()) {
-                        polygon_vertices.push_back({point["x"], point["y"]});
-                    }
-                }
-                this->holes.push_back({polygon_vertices});
-            }
-        }
-    }
-    
-    if (json_data.find("outline") != json_data.end() && json_data["outline"].find("points") != json_data["outline"].end()) {
-        for (json::object_t point : json_data["outline"]["points"]) {
-            if (point.find("x") != point.end() && point.find("y") != point.end()) {
-                this->pour_outline.points.push_back({point["x"], point["y"]});
-            }
-        }
-    }
-}
-
-json::object_t open_json::types::pour_polygon::get_json() {
-    json data = pour_polygon_base::get_json();
-    data["line_width"] = this->line_width;
-    data["holes"] = json::value_t::array; // Make empty array just in case there are no holes
-    for (polygon_points hole : this->holes) {
-        json hole_object = {{"points", json::value_t::array}};
-        for (point p : hole.points) {
-            hole_object["points"].push_back(json({
-                {"x", p.x},
-                {"y", p.y}
-            }));
-        }
-        data["holes"].push_back(hole_object);
-    }
-    json outline = {{"points", json::value_t::array}};
-    for (point p : this->pour_outline.points) {
-        outline["points"].push_back(json({
-            {"x", p.x},
-            {"y", p.y}
-        }));
-    }
-    data["outline"] = outline;
-    return data;
-}
-
-// Pour Polygon Set
-void open_json::types::pour_polygon_set::read(json json_data) {
-    if (json_data.find("polygons") != json_data.end()) {
-        for (json::object_t general_polygon : json_data["polygons"]) {
-            if (general_polygon.find("type") == general_polygon.end()) {
-                throw parse_exception("Invalid polygon in pour! No polygon type specified!");
-            }
-            
-            if (general_polygon["type"] == "general_polygon") {
-                this->sub_polygons.emplace_back(new types::pour_polygon(dynamic_cast<types::json_object*>(this), this->file_data, general_polygon));
-            } else if (general_polygon["type"] == "general_polygon_set") {
-                this->sub_polygons.emplace_back(new types::pour_polygon_set(dynamic_cast<types::json_object*>(this), this->file_data, general_polygon));
-            }
-        }
-    }
-}
-
-json::object_t open_json::types::pour_polygon_set::get_json() {
-    json data = pour_polygon_base::get_json();
-    data["polygons"] = json::value_t::array; // Make empty array just in case there are no polygons
-    for (auto sub_polygon : this->sub_polygons) {
-        data["polygons"].push_back(sub_polygon->get_json());
-    }
-    return data;
-}
-
 // Pour
 void open_json::types::pour::read(json json_data) {
     this->attached_net_id = open_json::get_value_or_default<std::string>(json_data, "attached_net", "Unnamed");
@@ -937,11 +836,10 @@ void open_json::types::pour::read(json json_data) {
         if (json_data["polygons"].find("type") == json_data["polygons"].end()) {
             throw parse_exception("Invalid polygon in pour! No polygon type specified!");
         }
-        
-        if (json_data["polygons"]["type"] == "general_polygon") {
-            this->pour_polygons = std::shared_ptr<types::pour_polygon_base>(new types::pour_polygon(dynamic_cast<types::json_object*>(this), this->file_data, json_data["polygons"]));
-        } else if (json_data["polygons"]["type"] == "general_polygon_set") {
-            this->pour_polygons = std::shared_ptr<types::pour_polygon_base>(new types::pour_polygon_set(dynamic_cast<types::json_object*>(this), this->file_data, json_data["polygons"]));
+        if (open_json::types::shapes::shape_typename_registry.find(json_data["polygons"]["type"]) == open_json::types::shapes::shape_typename_registry.end()) {
+            std::cerr<<"WARNING: Unknown shape type:"<<json_data["polygons"]["type"]<<" found in pour. Omitting polygons!"<<std::endl;
+        } else {
+            this->pour_shape = open_json::types::shapes::shape::new_shape(open_json::types::shapes::shape_typename_registry[json_data["polygons"]["type"]], dynamic_cast<types::json_object*>(this), this->file_data, json_data["polygons"]);
         }
     }
 }
@@ -960,8 +858,8 @@ json::object_t open_json::types::pour::get_json() {
         data["points"].push_back(json({{"x", p.x}, {"y", p.y}}));
     }
     
-    if (this->pour_polygons.get() != nullptr) {
-        data["polygons"] = this->pour_polygons->get_json();
+    if (this->pour_shape.get() != nullptr) {
+        data["polygons"] = this->pour_shape->get_json();
     }
     
     for (shapes::shape_type t : this->shape_types) {
@@ -1491,6 +1389,79 @@ json::object_t open_json::types::shapes::polygon::get_json() {
         shape["shape_types"].push_back(open_json::types::shapes::name_shape_type_registry[t]);
     }
     return shape;
+}
+
+// General Polygon
+void open_json::types::shapes::general_polygon::read(json json_data) {
+    if (json_data.find("holes") != json_data.end()) {
+        for (json polygon : json_data["holes"]) {
+            if (polygon.find("points") != polygon.end()) {
+                std::vector<point> polygon_vertices;
+                for (json::object_t point : polygon["points"]) {
+                    if (point.find("x") != point.end() && point.find("y") != point.end()) {
+                        polygon_vertices.push_back({point["x"], point["y"]});
+                    }
+                }
+                this->holes.push_back({polygon_vertices});
+            }
+        }
+    }
+    
+    if (json_data.find("outline") != json_data.end() && json_data["outline"].find("points") != json_data["outline"].end()) {
+        for (json::object_t point : json_data["outline"]["points"]) {
+            if (point.find("x") != point.end() && point.find("y") != point.end()) {
+                this->pour_outline.points.push_back({point["x"], point["y"]});
+            }
+        }
+    }
+}
+
+json::object_t open_json::types::shapes::general_polygon::get_json() {
+    json data = polygon::get_json();
+    data["holes"] = json::value_t::array; // Make empty array just in case there are no holes
+    for (polygon_points hole : this->holes) {
+        json hole_object = {{"points", json::value_t::array}};
+        for (point p : hole.points) {
+            hole_object["points"].push_back(json({
+                {"x", p.x},
+                {"y", p.y}
+            }));
+        }
+        data["holes"].push_back(hole_object);
+    }
+    json outline = {{"points", json::value_t::array}};
+    for (point p : this->pour_outline.points) {
+        outline["points"].push_back(json({
+            {"x", p.x},
+            {"y", p.y}
+        }));
+    }
+    data["outline"] = outline;
+    return data;
+}
+
+// General Polygon Set
+void open_json::types::shapes::general_polygon_set::read(json json_data) {
+    if (json_data.find("polygons") != json_data.end()) {
+        for (json::object_t shape : json_data["polygons"]) {
+            if (shape.find("type") == shape.end()) {
+                throw parse_exception("Invalid polygon in pour! No polygon type specified!");
+            }
+            if (open_json::types::shapes::shape_typename_registry.find(shape["type"]) == open_json::types::shapes::shape_typename_registry.end()) {
+                throw parse_exception("Invalid shape type specified: " + shape["type"].get<std::string>() + "!");
+            }
+            this->sub_shapes.push_back(open_json::types::shapes::shape::new_shape(open_json::types::shapes::shape_typename_registry[shape["type"]], dynamic_cast<types::json_object*>(this), this->file_data, shape));
+        }
+    }
+}
+
+json::object_t open_json::types::shapes::general_polygon_set::get_json() {
+    json data = polygon::get_json();
+    data["polygons"] = json::value_t::array; // Make empty array just in case there are no polygons
+    for (auto sub_shape : this->sub_shapes) {
+        data["polygons"].push_back(sub_shape->get_json());
+    }
+    return data;
 }
 
 // Bezier Curve
