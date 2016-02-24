@@ -155,6 +155,12 @@ void open_json::data::read(json json_data) {
             this->traces.emplace_back(new types::trace(dynamic_cast<types::json_object*>(this), this, json_object));
         }
     }
+    
+    if (json_data.find("paths") != json_data.end()) {
+        for (json::object_t json_object : json_data["paths"]) {
+            this->paths.emplace_back(new types::path(dynamic_cast<types::json_object*>(this), this, json_object));
+        }
+    }
 }
 
 json::object_t open_json::data::get_json() {
@@ -170,6 +176,7 @@ json::object_t open_json::data::get_json() {
         {"pcb_text", json::value_t::array},
         {"pours", json::value_t::array},
         {"trace_segments", json::value_t::array},
+        {"paths", json::value_t::array},
         {"version", { // TODO Move this constant to a const/possibly a cli option to change name
             {"exporter", "EDA Converter"}, 
             {"file_version", "0.2.0"} // We export the 0.2.0 version, TODO move this to a const
@@ -220,6 +227,10 @@ json::object_t open_json::data::get_json() {
     
     for (auto trace : this->traces) {
         data["trace_segments"].push_back(trace->get_json());
+    }
+        
+    for (auto path : this->paths) {
+        data["paths"].push_back(path->get_json());
     }
     
     return data;
@@ -903,7 +914,7 @@ json::object_t open_json::types::pour_polygon_set::get_json() {
 void open_json::types::pour::read(json json_data) {
     this->attached_net_id = open_json::get_value_or_default<std::string>(json_data, "attached_net", "Unnamed");
     this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
-    this->order_index = open_json::get_value_or_default(json_data, "rotation", this->order_index);
+    this->order_index = open_json::get_value_or_default(json_data, "order", this->order_index);
     
     if (json_data.find("attributes") != json_data.end()) {
         types::populate_attributes(this->attributes, json_data["attributes"]);
@@ -1220,6 +1231,51 @@ json::object_t open_json::types::net_point::get_json() {
     }
     
     return out;
+}
+
+// Path
+
+void open_json::types::path::read(json json_data) {
+    this->layer_name = open_json::get_value_or_default<std::string>(json_data, "layer", "Unnamed");
+    this->is_closed = open_json::get_boolean(json_data["is_closed"], this->is_closed);
+    this->width = open_json::get_value_or_default(json_data, "width", this->width);
+    
+    if (json_data.find("attributes") != json_data.end()) {
+        types::populate_attributes(this->attributes, json_data["attributes"]);
+    }
+    
+    for (json::object_t point : json_data["points"]) {
+        if (point.find("x") != point.end() && point.find("y") != point.end()) {
+            this->points.emplace_back(point["x"], point["y"]);
+        }
+    }
+    
+    for (std::string shape_type_name : json_data["shape_types"]) {
+        if (open_json::types::shapes::shape_typename_registry.find(shape_type_name) == open_json::types::shapes::shape_typename_registry.end()) {
+            throw parse_exception("Invalid shape type specified: " + shape_type_name + "!");
+        }
+        this->shape_types.push_back(open_json::types::shapes::shape_typename_registry[shape_type_name]);
+    }
+}
+
+json::object_t open_json::types::path::get_json() {
+    json data = {
+        {"attributes", this->attributes},
+        {"is_closed", this->is_closed},
+        {"layer", this->layer_name},
+        {"points", json::value_t::array},
+        {"shape_types", json::value_t::array},
+        {"width", this->width}
+    };
+    
+    for (point &p : this->points) {
+        data["points"].push_back(json({{"x", p.x}, {"y", p.y}}));
+    }
+    
+    for (shapes::shape_type t : this->shape_types) {
+        data["shape_types"].push_back(open_json::types::shapes::name_shape_type_registry[t]);
+    }
+    return data;
 }
 
 // Shapes

@@ -554,6 +554,21 @@ namespace open_json {
             json::object_t get_json() override;
         };
         
+        class path : public json_object {
+        private:
+            open_json::data *file_data;
+            std::map<std::string, std::string> attributes;
+            bool is_closed = true;
+            std::string layer_name;
+            double width = 250000.0; // .25mm
+            std::vector<point> points;
+            std::vector<shapes::shape_type> shape_types;
+        public:
+            path(json_object *super, open_json::data *file, json json_data) : json_object(super), file_data(file) { this->read(json_data); }
+            void read(json json_data) override;
+            json::object_t get_json() override;
+        };
+        
         class design_info : public json_object {
             typedef struct {
                 std::vector<std::string> attached_links;
@@ -597,6 +612,7 @@ namespace open_json {
         std::vector<std::shared_ptr<types::pcb_text>> pcb_text;
         std::vector<std::shared_ptr<types::pour>> pours;
         std::vector<std::shared_ptr<types::trace>> traces;
+        std::vector<std::shared_ptr<types::path>> paths;
     public:
         data(std::string file_name, json json_data) : json_object(nullptr), original_file_name(file_name) { this->read(json_data); }
         void read(json json_data) override;
