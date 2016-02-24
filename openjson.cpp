@@ -46,6 +46,7 @@ std::map<open_json::types::shapes::shape_type, std::string> open_json::types::sh
 // Data
 void open_json::data::read(json json_data) {
     if (json_data.find("version") != json_data.end()) {
+        // TODO Move the hard-coded current version number
         std::vector<std::string> tokens = split(json_data["version"].value("file_version", "0.2.0"), "\\.");
         if (tokens.size() >= 3) {
             try {
@@ -60,17 +61,18 @@ void open_json::data::read(json json_data) {
     }
     
     if (this->version_info.major < 1 && this->version_info.minor < 2) {
-        throw new parse_exception("This program cannot open OpenJSON file format versions earlier than 0.2.0 at the moment!");
+        // TODO Move the hard-coded current version number
+        std::cout<<"Attempting to upgrade the file format from version: "<<this->version_info.major<<"."<<this->version_info.minor<<"."<<this->version_info.build<<" to 0.2.0"<<std::endl;
     }
     
     if (json_data.find("design_attributes") != json_data.end()) {
-        design_info = std::shared_ptr<types::design_info>(new types::design_info(json_data["design_info"]));
+        design_info = std::shared_ptr<types::design_info>(new types::design_info(dynamic_cast<types::json_object*>(this), this, json_data["design_info"]));
     }
     
     if (json_data.find("components") != json_data.end()) {
         json componentsJson = json_data["components"];
         for (json::iterator it = componentsJson.begin(); it != componentsJson.end(); it++) {
-            this->components[it.key()] = std::shared_ptr<types::component>(new types::component(it.value(), it.key()));
+            this->components[it.key()] = std::shared_ptr<types::component>(new types::component(dynamic_cast<types::json_object*>(this), this, it.value(), it.key()));
         }
     }
     
@@ -83,33 +85,33 @@ void open_json::data::read(json json_data) {
             if (this->components[json_object["library_id"]] == nullptr) {
                 throw new parse_exception("Component instance has an invalid component library id!\nDid you forget to add a library?");
             }
-            std::shared_ptr<types::component_instance> componentInstance(new types::component_instance(this->components[json_object["library_id"]], json_object));
+            std::shared_ptr<types::component_instance> componentInstance(new types::component_instance(dynamic_cast<types::json_object*>(this), this, this->components[json_object["library_id"]], json_object));
             this->component_instances[componentInstance->get_id()] = componentInstance;
         }
     }
     
     if (json_data.find("layer_options") != json_data.end()) {
         for (json::object_t json_object : json_data["layer_options"]) {
-            this->layer_options.emplace_back(new types::layer_option(json_object));
+            this->layer_options.emplace_back(new types::layer_option(dynamic_cast<types::json_object*>(this), this, json_object));
         }
     }
     
     if (json_data.find("layout_bodies") != json_data.end()) {
         for (json::object_t json_object : json_data["layout_bodies"]) {
-            this->layout_bodies.emplace_back(new types::body(json_object));
+            this->layout_bodies.emplace_back(new types::body(dynamic_cast<types::json_object*>(this), this, json_object));
         }
     }
     
     if (json_data.find("layout_body_attributes") != json_data.end()) {
         for (json::object_t json_object : json_data["layout_body_attributes"]) {
-            this->layout_body_attributes.emplace_back(new types::layout_body_attribute(json_object));
+            this->layout_body_attributes.emplace_back(new types::layout_body_attribute(dynamic_cast<types::json_object*>(this), this, json_object));
         }
     }
     
     if (json_data.find("layout_objects") != json_data.end()) {
         json::array_t layout_objects = json_data["layout_objects"];
         for (json::object_t json_object : layout_objects) {
-            this->layout_objects.emplace_back(new types::layout_object(json_object));
+            this->layout_objects.emplace_back(new types::layout_object(dynamic_cast<types::json_object*>(this), this, json_object));
         }
     }
     
@@ -118,26 +120,26 @@ void open_json::data::read(json json_data) {
             if (json_object.find("net_id") == json_object.end()) {
                 throw new parse_exception("Net has no net id!");
             }
-            std::shared_ptr<types::net> net(new types::net(json_object));
+            std::shared_ptr<types::net> net(new types::net(dynamic_cast<types::json_object*>(this), this, json_object));
             this->nets[net->get_id()] = net;
         }
     }
     
     if (json_data.find("pcb_text") != json_data.end()) {
         for (json::object_t json_object : json_data["pcb_text"]) {
-            this->pcb_text.emplace_back(new types::pcb_text(json_object));
+            this->pcb_text.emplace_back(new types::pcb_text(dynamic_cast<types::json_object*>(this), this, json_object));
         }
     }
     
     if (json_data.find("pours") != json_data.end()) {
         for (json::object_t json_object : json_data["pours"]) {
-            this->pours.emplace_back(new types::pour(json_object));
+            this->pours.emplace_back(new types::pour(dynamic_cast<types::json_object*>(this), this, json_object));
         }
     }
     
     if (json_data.find("trace_segments") != json_data.end()) {
         for (json::object_t json_object : json_data["trace_segments"]) {
-            this->traces.emplace_back(new types::trace(json_object));
+            this->traces.emplace_back(new types::trace(dynamic_cast<types::json_object*>(this), this, json_object));
         }
     }
 }
@@ -212,7 +214,7 @@ json::object_t open_json::data::get_json() {
 void open_json::types::design_info::read(json json_data) {
     if (json_data.find("annotations") != json_data.end()) {
         for (json::object_t json_object : json_data["annotations"]) {
-            this->annotations.emplace_back(new types::annotation(json_object));
+            this->annotations.emplace_back(new types::annotation(dynamic_cast<types::json_object*>(this), this->file_data, json_object));
         }
     }
     
@@ -252,7 +254,7 @@ json::object_t open_json::types::design_info::get_json() {
         }}
     };
     for (auto a : this->annotations) {
-        data["annotations"].push_back(a.get_json());
+        data["annotations"].push_back(a->get_json());
     }
     return data;
 }
@@ -267,13 +269,13 @@ void open_json::types::component::read(json json_data) {
     
     if (json_data.find("footprints") != json_data.end()) {
         for (json::object_t footprint_object : json_data["footprints"]) {
-            this->footprints.emplace_back(footprint_object);
+            this->footprints.emplace_back(dynamic_cast<types::json_object*>(this), this->file_data, footprint_object);
         }
     }
     
     if (json_data.find("symbols") != json_data.end()) {
         for (json symbol_object : json_data["symbols"]) {
-            this->symbols.emplace_back(symbol_object);
+            this->symbols.emplace_back(new types::symbol(dynamic_cast<types::json_object*>(this), this->file_data, symbol_object));
         }
     }
 }
@@ -289,7 +291,7 @@ json::object_t open_json::types::component::get_json() {
         data["footprints"].push_back(f.get_json());
     }
     for (auto s : this->symbols) {
-        data["symbols"].push_back(s.get_json());
+        data["symbols"].push_back(s->get_json());
     }
     return data;
 }
@@ -306,26 +308,29 @@ void open_json::types::component_instance::read(json json_data) {
 
     if (json_data.find("gen_obj_attributes") != json_data.end()) {
         for (json::object_t json_object : json_data["gen_obj_attributes"]) {
-            this->generated_object_attributes.emplace_back(json_object);
+            this->generated_object_attributes.emplace_back(dynamic_cast<types::json_object*>(this), this->file_data, json_object);
         }
     }
     
     if (json_data.find("symbol_attributes") != json_data.end()) {
         for (json::object_t json_object : json_data["symbol_attributes"]) {
-            this->symbol_attributes.emplace_back(json_object);
+            this->symbol_attributes.emplace_back(dynamic_cast<types::json_object*>(this), this->file_data, json_object);
         }
     }
     
     if (json_data.find("footprint_attributes") != json_data.end()) {
         for (json::object_t json_object : json_data["footprint_attributes"]) {
-            this->footprint_attributes.emplace_back(json_object);
+            this->footprint_attributes.emplace_back(dynamic_cast<types::json_object*>(this), this->file_data, json_object);
         }
     }
     
     if (json_data.find("footprint_pos") != json_data.end()) {
         json json_object = json_data["footprint_pos"];
         this->footprint_pos.flip = open_json::get_boolean(json_object["flip"]);
-        this->footprint_pos.side = json_object.value("side", "Unnamed");
+        // Account for possible null in format version 0.1.0
+        if (json_object.find("side") != json_object.end() && !json_object["side"].is_null()) {
+            this->footprint_pos.side = json_object.value("side", this->footprint_pos.side);
+        }
         this->footprint_pos.rotation = json_object.value("rotation", this->footprint_pos.rotation);
         this->footprint_pos.position = open_json::types::point(json_object.value("x", this->footprint_pos.position.x), json_object.value("y", this->footprint_pos.position.y));
     }
@@ -368,13 +373,13 @@ json::object_t open_json::types::component_instance::get_json() {
 void open_json::types::footprint::read(json json_data) {
     if (json_data.find("bodies") != json_data.end()) {
         for (json::object_t json_object : json_data["bodies"]) {
-            this->bodies.emplace_back(new types::body(json_object));
+            this->bodies.emplace_back(new types::body(dynamic_cast<types::json_object*>(this), this->file_data, json_object));
         }
     }
     
     if (json_data.find("gen_objs") != json_data.end()) {
         for (json::object_t json_object : json_data["gen_objs"]) {
-            this->generated_objects.emplace_back(new types::generated_object(json_object));
+            this->generated_objects.emplace_back(new types::generated_object(dynamic_cast<types::json_object*>(this), this->file_data, json_object));
         }
     }
 }
@@ -421,7 +426,7 @@ json::object_t open_json::types::footprint_attribute::get_json() {
 void open_json::types::symbol::read(json json_data) {
     if (json_data.find("bodies") != json_data.end()) {
         for (json::object_t json_object : json_data["bodies"]) {
-            this->bodies.emplace_back(new types::body(json_object));
+            this->bodies.emplace_back(new types::body(dynamic_cast<types::json_object*>(this), this->file_data, json_object));
         }
     }
 }
@@ -446,7 +451,7 @@ void open_json::types::symbol_attribute::read(json json_data) {
     if (json_data.find("annotations") != json_data.end()) {
         json::array_t annotations = json_data["annotations"];
         for (json::object_t json_object : annotations) {
-            this->annotations.emplace_back(new types::annotation(json_object));
+            this->annotations.emplace_back(new types::annotation(dynamic_cast<types::json_object*>(this), this->file_data, json_object));
         }
     }
 }
@@ -492,19 +497,28 @@ void open_json::types::body::read(json json_data) {
             if (open_json::types::shapes::shape_typename_registry.find(json_object["type"]) == open_json::types::shapes::shape_typename_registry.end()) {
                 throw new parse_exception("Invalid shape type specified: " + json_object["type"].get<std::string>() + "!");
             }
-            this->shapes.push_back(open_json::types::shapes::shape::new_shape(open_json::types::shapes::shape_typename_registry[json_object["type"]], json_object));
+            this->shapes.push_back(open_json::types::shapes::shape::new_shape(open_json::types::shapes::shape_typename_registry[json_object["type"]], dynamic_cast<types::json_object*>(this), this->file_data, json_object));
         }
     }
     
-    if (json_data.find("action_regions") != json_data.end()) {
-        for (json::object_t json_object : json_data["action_regions"]) {
-            this->action_regions.emplace_back(new types::action_region(json_object));
+    if (this->file_data->version_info.major < 1 && this->file_data->version_info.minor < 2) {
+        // Convert pins to action_regions
+        if (json_data.find("pins") != json_data.end()) {
+            for (json::object_t json_object : json_data["pins"]) {
+                this->action_regions.emplace_back(new types::action_region(dynamic_cast<types::json_object*>(this), this->file_data, json_object));
+            }
+        }
+    } else {
+        if (json_data.find("action_regions") != json_data.end()) {
+            for (json::object_t json_object : json_data["action_regions"]) {
+                this->action_regions.emplace_back(new types::action_region(dynamic_cast<types::json_object*>(this), this->file_data, json_object));
+            }
         }
     }
     
     if (json_data.find("annotations") != json_data.end()) {
         for (json::object_t json_object : json_data["annotations"]) {
-            this->annotations.emplace_back(new types::annotation(json_object));
+            this->annotations.emplace_back(new types::annotation(dynamic_cast<types::json_object*>(this), this->file_data, json_object));
         }
     }
 }
@@ -585,9 +599,26 @@ json::object_t open_json::types::generated_object_attribute::get_json() {
 }
 // Action Region
 void open_json::types::action_region::read(json json_data) {
-    this->name = json_data.value("name", "Unnamed Region");
-    this->ref_id = json_data.value("ref", this->name);
-    
+    if (this->file_data->version_info.major < 1 && this->file_data->version_info.minor < 2) {
+        // Pins to Action Region
+        this->ref_id = this->name = json_data.value("pin_number", "0");
+        // Move label to shapes
+        if (json_data.find("label") != json_data.end()) {
+            if (json_data["label"].find("type") == json_data["label"].end()) {
+                throw new parse_exception("Invalid label! label has no type specifier!");
+            }
+            if (json_data["label"]["type"] != open_json::types::shapes::name_shape_type_registry[open_json::types::shapes::shape_type::LABEL]) {
+                throw new parse_exception("Label is not of the label type!");
+            }
+            dynamic_cast<types::body*>(this->parent)->add_shape(open_json::types::shapes::shape::new_shape(open_json::types::shapes::shape_typename_registry[json_data["label"]["type"]], this->parent, this->file_data, json_data["label"]));
+            // Set the name to the label text, or if for some reason it doesn't exist use the pin_number text
+            this->name = json_data["label"].value("text", this->name);
+        }
+    } else {
+        this->name = json_data.value("name", "Unnamed Region");
+        this->ref_id = json_data.value("ref", this->name);
+    }
+
     if (json_data.find("attributes") != json_data.end()) {
         types::populate_attributes(this->attributes, json_data["attributes"]);
     }
@@ -596,6 +627,7 @@ void open_json::types::action_region::read(json json_data) {
         open_json::types::populate_attributes(this->styles, json_data["styles"]);
     }
     
+    // No need to check for versions less than 0.2.0 since this will check for the existance of the "connections" key anyways
     if (json_data.find("connections") != json_data.end()) {
         for (std::vector<int> connection : json_data["connections"]) {
             this->connections.push_back(connection);
@@ -635,7 +667,7 @@ void open_json::types::annotation::read(json json_data) {
     this->visible = open_json::get_boolean(json_data["visible"], true);
     
     if (json_data.find("label") != json_data.end()) {
-        this->label = std::shared_ptr<open_json::types::shapes::label>(new open_json::types::shapes::label(json_data["label"]));
+        this->label = std::shared_ptr<open_json::types::shapes::label>(new open_json::types::shapes::label(dynamic_cast<types::json_object*>(this), this->file_data, json_data["label"]));
     }
 }
 
@@ -722,7 +754,7 @@ void open_json::types::pcb_text::read(json json_data) {
     this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
     
     if (json_data.find("label") != json_data.end()) {
-        this->label = std::shared_ptr<open_json::types::shapes::label>(new open_json::types::shapes::label(json_data["label"]));
+        this->label = std::shared_ptr<open_json::types::shapes::label>(new open_json::types::shapes::label(dynamic_cast<types::json_object*>(this), this->file_data, json_data["label"]));
     }
 }
 
@@ -833,9 +865,9 @@ void open_json::types::pour_polygon_set::read(json json_data) {
             }
             
             if (general_polygon["type"] == "general_polygon") {
-                this->sub_polygons.emplace_back(new types::pour_polygon(general_polygon));
+                this->sub_polygons.emplace_back(new types::pour_polygon(dynamic_cast<types::json_object*>(this), this->file_data, general_polygon));
             } else if (general_polygon["type"] == "general_polygon_set") {
-                this->sub_polygons.emplace_back(new types::pour_polygon_set(general_polygon));
+                this->sub_polygons.emplace_back(new types::pour_polygon_set(dynamic_cast<types::json_object*>(this), this->file_data, general_polygon));
             }
         }
     }
@@ -879,9 +911,9 @@ void open_json::types::pour::read(json json_data) {
         }
         
         if (json_data["polygons"]["type"] == "general_polygon") {
-            this->pour_polygons = std::shared_ptr<types::pour_polygon_base>(new types::pour_polygon(json_data["polygons"]));
+            this->pour_polygons = std::shared_ptr<types::pour_polygon_base>(new types::pour_polygon(dynamic_cast<types::json_object*>(this), this->file_data, json_data["polygons"]));
         } else if (json_data["polygons"]["type"] == "general_polygon_set") {
-            this->pour_polygons = std::shared_ptr<types::pour_polygon_base>(new types::pour_polygon_set(json_data["polygons"]));
+            this->pour_polygons = std::shared_ptr<types::pour_polygon_base>(new types::pour_polygon_set(dynamic_cast<types::json_object*>(this), this->file_data, json_data["polygons"]));
         }
     }
 }
@@ -982,7 +1014,7 @@ void open_json::types::net::read(json json_data) {
     if (json_data.find("annotations") != json_data.end()) {
         json::array_t annotations = json_data["annotations"];
         for (json::object_t json_object : annotations) {
-            this->annotations.emplace_back(new types::annotation(json_object));
+            this->annotations.emplace_back(new types::annotation(dynamic_cast<types::json_object*>(this), this->file_data, json_object));
         }
     }
     
@@ -995,7 +1027,7 @@ void open_json::types::net::read(json json_data) {
             if (net_object.find("point_id") == net_object.end()) {
                 throw new parse_exception("Invalid point in net: " + this->net_id + "! Point does not contain a point id!");
             }
-            this->points[net_object["point_id"]] = std::shared_ptr<net_point>(new net_point(json_data, net_object["point_id"]));
+            this->points[net_object["point_id"]] = std::shared_ptr<net_point>(new net_point(dynamic_cast<types::json_object*>(this), this->file_data, net_object, net_object["point_id"]));
         }
     }
     
@@ -1037,6 +1069,11 @@ json::object_t open_json::types::net::get_json() {
 void open_json::types::net_point::read(json json_data) {
     this->position = open_json::types::point(json_data.value("x", this->position.x), json_data.value("y", this->position.y));
     
+    for (std::string point_id : json_data["connected_points"]) {
+        this->connected_point_ids.push_back(point_id);
+    }
+    
+    // Wont be found in versions less than 0.2.0
     if (json_data.find("connected_action_regions") != json_data.end()) {
         for (json connected_action_region : json_data["connected_action_regions"]) {
             this->connected_action_regions.emplace_back(
@@ -1049,8 +1086,55 @@ void open_json::types::net_point::read(json json_data) {
         }
     }
     
-    for (std::string point_id : json_data["connected_points"]) {
-        this->connected_point_ids.push_back(point_id);
+    // Only in file versions less than 0.2.0
+    if (json_data.find("connected_components") != json_data.end()) {
+        for (json connected_component : json_data["connected_components"]) {
+            if (connected_component.find("instance_id") == connected_component.end()) {
+                throw new parse_exception("Error in net! A connected component does not have an instance id! This is fatal!");
+            }
+            if (connected_component.find("pin_number") == connected_component.end()) {
+                throw new parse_exception("Error in net! A connected component does not have a pin number! This is fatal!");
+            }
+            if (this->file_data->component_instances.find(connected_component["instance_id"]) != this->file_data->component_instances.end()) {
+                std::shared_ptr<types::component_instance> component_instance = this->file_data->component_instances[connected_component["instance_id"]];
+                std::shared_ptr<types::symbol> symbol = component_instance->get_definition()->get_symbol_at_index(component_instance->get_symbol_index());
+                if (!symbol) {
+                    throw new parse_exception("Error in component instance! Invalid symbol index!");
+                }
+                auto get_action_region_index = [&symbol, &connected_component](size_t body_index) -> std::pair<bool, size_t> {
+                    for (size_t action_region_index = 0; action_region_index < symbol->get_body_at_index(body_index)->get_number_of_action_regions(); action_region_index++) {
+                        std::shared_ptr<types::action_region> action_region = symbol->get_body_at_index(body_index)->get_action_region_at_index(action_region_index);
+                        if (action_region->get_ref_id() == connected_component["pin_number"]) {
+                            return std::make_pair(true, action_region_index);
+                        }
+                    }
+                    return std::make_pair(false, 0);
+                };
+                bool conversion_successful = false;
+                for (size_t body_index = 0; body_index < symbol->get_number_of_bodies(); body_index++) {
+                    auto result = get_action_region_index(body_index);
+                    // Go with the firt body with the matching ref id, the old format didn't store a body index value
+                    if (result.first) {
+                        this->connected_action_regions.emplace_back(
+                            result.second,
+                            body_index,
+                            connected_component["instance_id"],
+                            0,
+                            ""
+                        );
+                        conversion_successful = true;
+                        break;
+                    }
+                }
+                if (!conversion_successful) {
+                    std::cerr<<"Error converting a net to new format, couldn't find a matching pin number: "<<connected_component["pin_number"]<<std::endl;
+                    std::cerr<<"Make sure to check and repair and check the net with id:"<<dynamic_cast<types::net*>(this->parent)->get_id()<<"!"<<std::endl;
+                }
+            } else {
+                std::cerr<<"Error converting a net to new format, couldn't find component instance with id: "<<connected_component["instance_id"]<<std::endl;
+                std::cerr<<"Make sure to check and repair and check the net with id:"<<dynamic_cast<types::net*>(this->parent)->get_id()<<"!"<<std::endl;
+            }
+        }
     }
 }
 
@@ -1343,7 +1427,7 @@ void open_json::open_json_format::write(output_type type, std::string out_file) 
     for (auto data : this->parsed_data) {
         std::ofstream file_stream(out_file);
         json raw_json = data->get_json();
-        file_stream << /*std::setw(4) <<*/ raw_json << std::endl;
+        file_stream << std::setw(4) << raw_json << std::endl;
         file_stream.close();
     }
 }
